@@ -1,0 +1,11 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cpu",
+    srcs = [
+        "cpu.go",
+        "instructions.go",
+    ],
+    importpath = "github.com/meadori/vibemulator/cpu",
+    visibility = ["//:__subpackages__"],
+)

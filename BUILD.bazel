@@ -1,0 +1,17 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "vibemulator_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/meadori/vibemulator",
+    deps = [
+        "//bus",
+        "//cpu",
+    ],
+)
+
+go_binary(
+    name = "vibemulator",
+    embed = [":vibemulator_lib"],
+    visibility = ["//visibility:public"],
+)
