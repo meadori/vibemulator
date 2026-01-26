@@ -13,6 +13,8 @@ func main() {
 	// Load program
 	b.Write(0x8000, 0xA9)
 	b.Write(0x8001, 0x42)
+	b.Write(0x8002, 0x85)
+	b.Write(0x8003, 0x10)
 
 	// Set reset vector
 	b.Write(0xFFFC, 0x00)
@@ -20,10 +22,11 @@ func main() {
 
 	c.Reset()
 
-	// Run for a few cycles
-	for i := 0; i < 10; i++ {
+	// Run program
+	for i := 0; i < 20; i++ {
 		c.Clock()
 	}
 
 	fmt.Printf("Accumulator: 0x%X\n", c.A)
+	fmt.Printf("Value at 0x10: 0x%X\n", b.Read(0x10))
 }

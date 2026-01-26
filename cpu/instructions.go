@@ -12,6 +12,8 @@ type Instruction struct {
 func (c *CPU) createLookupTable() [256]Instruction {
 	return [256]Instruction{
 		0xA9: {"LDA", c.lda, c.imm, "imm", 2},
+		0xA5: {"LDA", c.lda, c.zp0, "zp0", 3},
+		0x85: {"STA", c.sta, c.zp0, "zp0", 3},
 		0xAA: {"TAX", c.tax, c.imp, "imp", 2},
 	}
 }
@@ -19,7 +21,7 @@ func (c *CPU) createLookupTable() [256]Instruction {
 // Addressing Modes
 
 func (c *CPU) imp() {
-	// Do nothing
+	c.fetched = c.A
 }
 
 func (c *CPU) imm() {
@@ -27,7 +29,105 @@ func (c *CPU) imm() {
 	c.PC++
 }
 
+func (c *CPU) zp0() {
+	c.addrAbs = uint16(c.bus.Read(c.PC))
+	c.PC++
+}
+
+func (c *CPU) zpx() {
+	c.addrAbs = uint16(c.bus.Read(c.PC) + c.X)
+	c.PC++
+	c.addrAbs &= 0x00FF
+}
+
+func (c *CPU) zpy() {
+	c.addrAbs = uint16(c.bus.Read(c.PC) + c.Y)
+	c.PC++
+	c.addrAbs &= 0x00FF
+}
+
+func (c *CPU) rel() {
+	c.addrRel = uint16(c.bus.Read(c.PC))
+	c.PC++
+	if c.addrRel&0x80 != 0 {
+		c.addrRel |= 0xFF00
+	}
+}
+
+func (c *CPU) abs() {
+	lo := uint16(c.bus.Read(c.PC))
+	c.PC++
+	hi := uint16(c.bus.Read(c.PC))
+	c.PC++
+	c.addrAbs = (hi << 8) | lo
+}
+
+func (c *CPU) abx() {
+	lo := uint16(c.bus.Read(c.PC))
+	c.PC++
+	hi := uint16(c.bus.Read(c.PC))
+	c.PC++
+	c.addrAbs = (hi << 8) | lo
+	c.addrAbs += uint16(c.X)
+
+	if (c.addrAbs & 0xFF00) != (hi << 8) {
+		c.cycles++
+	}
+}
+
+func (c *CPU) aby() {
+	lo := uint16(c.bus.Read(c.PC))
+	c.PC++
+	hi := uint16(c.bus.Read(c.PC))
+	c.PC++
+	c.addrAbs = (hi << 8) | lo
+	c.addrAbs += uint16(c.Y)
+
+	if (c.addrAbs & 0xFF00) != (hi << 8) {
+		c.cycles++
+	}
+}
+
+func (c *CPU) ind() {
+	ptrLo := uint16(c.bus.Read(c.PC))
+	c.PC++
+	ptrHi := uint16(c.bus.Read(c.PC))
+	c.PC++
+	ptr := (ptrHi << 8) | ptrLo
+
+	if ptrLo == 0x00FF { // Simulate page boundary hardware bug
+		c.addrAbs = (uint16(c.bus.Read(ptr&0xFF00)) << 8) | uint16(c.bus.Read(ptr))
+	} else {
+		c.addrAbs = (uint16(c.bus.Read(ptr+1)) << 8) | uint16(c.bus.Read(ptr))
+	}
+}
+
+func (c *CPU) izx() {
+	t := uint16(c.bus.Read(c.PC))
+	c.PC++
+	lo := uint16(c.bus.Read((t + uint16(c.X)) & 0x00FF))
+	hi := uint16(c.bus.Read((t + uint16(c.X) + 1) & 0x00FF))
+	c.addrAbs = (hi << 8) | lo
+}
+
+func (c *CPU) izy() {
+	t := uint16(c.bus.Read(c.PC))
+	c.PC++
+	lo := uint16(c.bus.Read(t & 0x00FF))
+	hi := uint16(c.bus.Read((t + 1) & 0x00FF))
+	c.addrAbs = (hi << 8) | lo
+	c.addrAbs += uint16(c.Y)
+
+	if (c.addrAbs & 0xFF00) != (hi << 8) {
+		c.cycles++
+	}
+}
+
 // Instructions
+
+func (c *CPU) sta() {
+	c.bus.Write(c.addrAbs, c.A)
+}
 
 func (c *CPU) tax() {
 	c.X = c.A

@@ -34,6 +34,7 @@ type CPU struct {
 
 	fetched uint8
 	addrAbs uint16
+	addrRel uint16
 }
 
 
@@ -72,9 +73,14 @@ func (c *CPU) Clock() {
 		c.PC++
 
 		instr := c.lookup[c.opcode]
+		if instr.Operate == nil {
+			// Invalid instruction
+			return
+		}
 		c.cycles = instr.Cycles
 		instr.AddrMode()
 		instr.Operate()
 	}
 	c.cycles--
 }
+
