@@ -30,6 +30,11 @@ func (b *Bus) LoadCartridge(cart *cartridge.Cartridge) {
 	b.ppu.ConnectCartridge(cart)
 }
 
+// GetPPU returns the PPU instance.
+func (b *Bus) GetPPU() *ppu.PPU {
+	return b.ppu
+}
+
 // GetCPU returns the CPU instance.
 func (b *Bus) GetCPU() *cpu.CPU {
 	return b.cpu

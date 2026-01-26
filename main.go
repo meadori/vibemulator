@@ -2,10 +2,14 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
+
+	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/meadori/vibemulator/bus"
 	"github.com/meadori/vibemulator/cartridge"
+	"github.com/meadori/vibemulator/display"
 )
 
 func main() {
@@ -22,11 +26,9 @@ func main() {
 
 	b := bus.New()
 	b.LoadCartridge(cart)
-	c := b.GetCPU()
 
-	c.Reset()
-
-	for {
-		b.Clock()
+	d := display.New(b)
+	if err := ebiten.RunGame(d); err != nil {
+		log.Fatal(err)
 	}
 }

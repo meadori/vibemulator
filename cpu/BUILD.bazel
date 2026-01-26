@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "cpu",
@@ -8,4 +8,10 @@ go_library(
     ],
     importpath = "github.com/meadori/vibemulator/cpu",
     visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "cpu_test",
+    srcs = ["cpu_test.go"],
+    embed = [":cpu"],
 )

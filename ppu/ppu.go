@@ -37,6 +37,8 @@ type PPU struct {
 
 	scanline int
 	cycle int
+
+	pixels [256 * 240]byte
 }
 
 // New creates a new PPU instance.
@@ -98,11 +100,20 @@ func (p *PPU) ppuRead(addr uint16) byte {
 	return 0
 }
 
+func (p *PPU) GetPixels() []byte {
+	return p.pixels[:]
+}
+
 func (p *PPU) Clock() {
 	if p.scanline >= -1 && p.scanline < 240 {
 		if p.scanline == -1 && p.cycle == 1 {
 			p.PPUSTATUS &^= 0x80
 		}
+
+		if p.scanline >= 0 && p.cycle < 256 {
+			p.pixels[p.scanline*256+p.cycle] = p.palette[p.ppuRead(0x3F00)%0x40]
+		}
+
 		if p.scanline == 241 && p.cycle == 1 {
 			p.PPUSTATUS |= 0x80
 			if p.PPUCTRL&0x80 != 0 {
@@ -120,7 +131,6 @@ func (p *PPU) Clock() {
 		}
 	}
 }
-
 // Read reads from a PPU register.
 func (p *PPU) Read(addr uint16) byte {
 	switch addr {

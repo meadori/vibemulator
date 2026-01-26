@@ -28,6 +28,13 @@ go_register_toolchains()
 gazelle_dependencies()
 
 go_repository(
+    name = "com_github_hajimehoshi_ebiten_v2",
+    importpath = "github.com/hajimehoshi/ebiten/v2",
+    sum = "h1:0000000000000000000000000000000000000000000000000000",
+    version = "v2.9.7",
+)
+
+go_repository(
     name = "com_github_meadori_vibemulator",
     importpath = "github.com/meadori/vibemulator",
     sum = "h1:0000000000000000000000000000000000000000000000000000",

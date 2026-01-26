@@ -7,7 +7,8 @@ go_library(
     deps = [
         "//bus",
         "//cartridge",
-        "//cpu",
+        "//display",
+        "@com_github_hajimehoshi_ebiten_v2//:ebiten",
     ],
 )
 

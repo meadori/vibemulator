@@ -1,0 +1,12 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "display",
+    srcs = ["display.go"],
+    importpath = "github.com/meadori/vibemulator/display",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//bus",
+        "@com_github_hajimehoshi_ebiten_v2//:ebiten",
+    ],
+)
