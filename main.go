@@ -27,6 +27,6 @@ func main() {
 	c.Reset()
 
 	for {
-		c.Clock()
+		b.Clock()
 	}
 }

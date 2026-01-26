@@ -1,13 +1,11 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
-    name = "bus",
-    srcs = ["bus.go"],
-    importpath = "github.com/meadori/vibemulator/bus",
+    name = "ppu",
+    srcs = ["ppu.go"],
+    importpath = "github.com/meadori/vibemulator/ppu",
     visibility = ["//visibility:public"],
     deps = [
         "//cartridge",
-        "//cpu",
-        "//ppu",
     ],
 )

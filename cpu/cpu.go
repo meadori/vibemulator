@@ -66,6 +66,24 @@ func (c *CPU) Reset() {
 	c.cycles = 8
 }
 
+// NMI is a non-maskable interrupt.
+func (c *CPU) NMI() {
+	c.push(byte((c.PC >> 8) & 0x00FF))
+	c.push(byte(c.PC & 0x00FF))
+
+	c.setFlag(B, false)
+	c.setFlag(U, true)
+	c.setFlag(I, true)
+	c.push(c.P)
+
+	c.addrAbs = 0xFFFA
+	lo := uint16(c.bus.Read(c.addrAbs))
+	hi := uint16(c.bus.Read(c.addrAbs + 1))
+	c.PC = (hi << 8) | lo
+
+	c.cycles = 8
+}
+
 // Clock performs one clock cycle.
 func (c *CPU) Clock() {
 	if c.cycles == 0 {
