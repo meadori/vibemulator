@@ -2,31 +2,31 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/meadori/vibemulator/bus"
+	"github.com/meadori/vibemulator/cartridge"
 )
 
 func main() {
+	if len(os.Args) != 2 {
+		fmt.Println("Usage: vibemulator <rom_file>")
+		os.Exit(1)
+	}
+
+	cart, err := cartridge.New(os.Args[1])
+	if err != nil {
+		fmt.Println("Error loading ROM:", err)
+		os.Exit(1)
+	}
+
 	b := bus.New()
+	b.LoadCartridge(cart)
 	c := b.GetCPU()
-
-	// Load program
-	b.Write(0x8000, 0xA9)
-	b.Write(0x8001, 0x42)
-	b.Write(0x8002, 0x85)
-	b.Write(0x8003, 0x10)
-
-	// Set reset vector
-	b.Write(0xFFFC, 0x00)
-	b.Write(0xFFFD, 0x80)
 
 	c.Reset()
 
-	// Run program
-	for i := 0; i < 20; i++ {
+	for {
 		c.Clock()
 	}
-
-	fmt.Printf("Accumulator: 0x%X\n", c.A)
-	fmt.Printf("Value at 0x10: 0x%X\n", b.Read(0x10))
 }

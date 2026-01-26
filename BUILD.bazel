@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/meadori/vibemulator",
     deps = [
         "//bus",
+        "//cartridge",
         "//cpu",
     ],
 )

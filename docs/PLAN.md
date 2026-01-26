@@ -6,11 +6,16 @@ This document outlines the development plan for the vibemulator NES emulator.
 
 ### Milestone 1: Basic CPU Implementation
 
+- [x] Implement CPU memory map (RAM)
 - [ ] Implement CPU instruction set (subset for basic ROMs)
-- [ ] Implement CPU memory map (RAM)
-- [ ] Load and execute a simple ROM
+- [x] Load and execute a simple ROM
 
-### Milestone 2: PPU and Graphics
+### Milestone 2: Cartridge and Mapper Support
+
+- [x] Load .nes file format
+- [ ] Implement Mapper 0 (NROM)
+
+### Milestone 3: PPU and Graphics
 
 - [ ] Implement PPU registers
 - [ ] Implement PPU memory map (VRAM, palettes)
@@ -34,9 +39,9 @@ This document outlines the development plan for the vibemulator NES emulator.
 
 ### CPU
 
-- [ ] Registers (PC, SP, A, X, Y, P)
-- [ ] Addressing Modes
-- [ ] Instructions (subset)
+- [x] Registers (PC, SP, A, X, Y, P)
+- [x] Addressing Modes
+- [x] Instructions (subset)
 - [ ] Instructions (full)
 - [ ] Interrupts (NMI, IRQ, BRK)
 

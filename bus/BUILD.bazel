@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/meadori/vibemulator/bus",
     visibility = ["//visibility:public"],
     deps = [
+        "//cartridge",
         "//cpu",
     ],
 )
