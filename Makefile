@@ -21,12 +21,13 @@ test: deps
 
 nestest: deps
 	@echo "Running nestest CPU test..."
-	@go run nestest/main.go ~/Stuff/roms/nestest.nes
+	@go run nestest/main.go
 
 clean:
 	@echo "Cleaning build artifacts..."
 	@rm -f $(GO_BINARY)
 	@go clean
+	@rm -rf nestest/testdata
 
 deps:
 	@echo "Ensuring Go modules are downloaded..."

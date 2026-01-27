@@ -42,15 +42,11 @@ func executeOneInstruction(c *cpu.CPU, mockBus *mockBus) {
 }
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Println("Usage: nestest <nestest_rom_file>")
-		os.Exit(1)
-	}
+	romPath := "nestest/testdata/nestest.nes" // Hardcoded path
 
-	romPath := os.Args[1]
 	cart, err := cartridge.New(romPath)
 	if err != nil {
-		log.Fatalf("Error loading ROM: %v", err)
+		log.Fatalf("Error loading nestest ROM from %s: %v. Please ensure a valid nestest.nes is placed there.", romPath, err)
 	}
 
 	c := cpu.New()
