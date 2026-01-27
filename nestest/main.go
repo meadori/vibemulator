@@ -58,6 +58,12 @@ func main() {
 
 	// Loop and execute instructions, logging state
 	for i := 0; i < 100000; i++ { // Limit to 100,000 instructions for now
+        // Peek at the opcode at current PC before execution for logging purposes
+        currentOpcode := mockBus.Read(c.PC)
+        currentInstruction := c.Lookup[currentOpcode]
+
+        // Print opcode and instruction details
+        fmt.Printf("%04X  %02X %s %s\n", c.PC, currentOpcode, currentInstruction.Name, currentInstruction.AddrModeName)
 		fmt.Println(c.LogState())
 		
 		// The Clock() method itself fetches instructions when c.Cycles becomes 0.
