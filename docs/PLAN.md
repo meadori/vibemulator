@@ -14,7 +14,7 @@ This document outlines the development plan for the vibemulator NES emulator.
 ### Milestone 2: Cartridge and Mapper Support
 
 - [x] Load .nes file format
-- [ ] Implement Mapper 0 (NROM)
+- [x] Implement Mapper 0 (NROM)
 
 ### Milestone 3: PPU and Graphics
 
@@ -68,7 +68,7 @@ This document outlines the development plan for the vibemulator NES emulator.
 
 ### Mappers
 
-- [ ] NROM (Mapper 0)
+- [x] NROM (Mapper 0)
 - [ ] MMC1 (Mapper 1)
 - [ ] UXROM (Mapper 2)
 - [ ] CNROM (Mapper 3)
