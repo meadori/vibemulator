@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/meadori/vibemulator/cartridge"
 	"github.com/meadori/vibemulator/cpu"
@@ -143,6 +144,13 @@ func main() {
         
         fmt.Println(logLine)
 
-		break // Exit after 1 instruction
+		// Break conditions for nestest (usually a specific instruction or PC)
+		// nestest will typically loop at a specific address (e.g., 0xC66A or 0xE000-ish) when finished.
+		if c.PC == 0xC669 { // Example of a known end point for a nestest run.
+			break
+		}
+		if c.PC == 0xE000 { // Another common end point.
+			break
+		}
 	}
 }
