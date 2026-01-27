@@ -1,0 +1,8 @@
+bazel_dep(name = "rules_go", version = "0.44.0")
+bazel_dep(name = "platforms", version = "0.0.11") # Add platforms back, as it's required
+
+go_mod_config = use_extension("@rules_go//go:go.bzl", "go_mod_configure")
+go_mod_config.configure(go_version = "1.25.5")
+
+use_repo(go_mod_config, "go_sdk")
+use_repo(go_mod_config, "com_github_hajimehoshi_ebiten_v2")
