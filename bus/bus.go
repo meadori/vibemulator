@@ -15,6 +15,7 @@ type Bus struct {
 	
 	cart *cartridge.Cartridge // Keep cartridge for now, might be useful
 	mapper mapper.Mapper      // New mapper field
+	dmaTransfer int
 }
 
 // New creates a new Bus instance.
@@ -56,10 +57,18 @@ func (b *Bus) GetCPU() *cpu.CPU {
 }
 
 func (b *Bus) Clock() {
-	b.cpu.Clock()
 	b.ppu.Clock()
 	b.ppu.Clock()
 	b.ppu.Clock()
+
+	if b.dmaTransfer > 0 {
+		b.dmaTransfer--
+		if b.dmaTransfer == 0 {
+			// DMA finished, CPU can resume
+		}
+	} else {
+		b.cpu.Clock()
+	}
 
 	if b.ppu.NMI {
 		b.ppu.NMI = false
@@ -104,7 +113,15 @@ func (b *Bus) Write(addr uint16, data byte) {
 	} else if addr >= 0x2000 && addr < 0x4000 { // PPU registers, mirrored
 		b.ppu.Write(addr&0x0007, data)
 	} else if addr >= 0x4000 && addr < 0x4020 { // APU and I/O registers
-		// TODO: Implement APU and I/O registers
+		if addr == 0x4014 { // OAMDMA
+			b.ppu.DoOAMDMA(data, b.Read)
+			if b.cpu.Cycles%2 == 0 { // Check CPU cycle parity
+				b.dmaTransfer = 513
+			} else {
+				b.dmaTransfer = 514
+			}
+		}
+		// TODO: Implement other APU and I/O registers
 	} else if addr >= 0x4020 && addr < 0x6000 { // Expansion ROM (usually unused)
 		// TODO: Mapper specific
 	} else if addr >= 0x6000 && addr <= 0xFFFF { // PRG-RAM, PRG-ROM

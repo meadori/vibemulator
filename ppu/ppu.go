@@ -53,11 +53,34 @@ type PPU struct {
 	bgShifterAttribH  uint16
 
 	pixels [256 * 240]byte
+
+	scanlineSprites []sprite
+	spriteCount     int
+
+	spritePatternL  [8]byte // LSB of sprite pixel patterns for current scanline
+	spritePatternH  [8]byte // MSB of sprite pixel patterns for current scanline
+	spriteAttribute [8]byte // Attributes for sprites on current scanline
+	spriteX         [8]byte // X positions for sprites on current scanline
+
+	// Temporary storage for individual sprite pixel data
+	spritePixels [8]struct {
+		colorIndex byte
+		priority   byte
+	}
+}
+
+type sprite struct {
+	y     byte
+	tile  byte
+	attrs byte
+	x     byte
 }
 
 // New creates a new PPU instance.
 func New() *PPU {
-	return &PPU{}
+	return &PPU{
+		scanlineSprites: make([]sprite, 0, 8),
+	}
 }
 
 // ConnectCartridge connects a cartridge to the PPU. (Minimal use now, mainly for mapper)
@@ -189,21 +212,98 @@ func (p *PPU) Clock() {
 	if p.scanline >= -1 && p.scanline < 240 {
 		if p.scanline == -1 && p.cycle == 1 {
 			p.PPUSTATUS &^= 0x80
+			p.PPUSTATUS &^= 0x40 // Clear sprite 0 hit
+			p.PPUSTATUS &^= 0x20 // Clear sprite overflow
+		}
+
+		if p.cycle == 0 { // Start of scanline
+			p.scanlineSprites = p.scanlineSprites[:0] // Clear previous scanline sprites
+			p.spriteCount = 0
+
+			// Sprite height
+			spriteHeight := byte(8)
+			if p.PPUCTRL&(1<<5) != 0 {
+				spriteHeight = 16
+			}
+
+			// Iterate OAM to find sprites for this scanline
+			oamIdx := 0
+			for i := 0; i < 64; i++ { // 64 sprites in OAM
+				s := sprite{
+					y:     p.oam[oamIdx],
+					tile:  p.oam[oamIdx+1],
+					attrs: p.oam[oamIdx+2],
+					x:     p.oam[oamIdx+3],
+				}
+				oamIdx += 4
+
+				diff := p.scanline - int(s.y)
+				if diff >= 0 && diff < int(spriteHeight) {
+					if p.spriteCount < 8 {
+						p.scanlineSprites = append(p.scanlineSprites, s)
+						p.spriteCount++
+					} else {
+						p.PPUSTATUS |= 0x20 // Set sprite overflow flag
+						// We still need to find sprite 0 hit, so continue iteration but don't add more sprites
+					}
+				}
+			}
 		}
 
 		if p.scanline >= 0 && p.cycle < 256 {
-			var paletteIdx byte
-			if p.PPUMASK&(1<<3) != 0 {
+			var bgPaletteIdx byte = 0
+			var bgPixel byte = 0
+			if p.PPUMASK&(1<<3) != 0 { // If background rendering is enabled
 				mux := 0x8000 >> uint(p.fineX)
-				p1 := (p.bgShifterPatternH & uint16(mux)) > 0
-				p0 := (p.bgShifterPatternL & uint16(mux)) > 0
-				paletteIdx = (boolToByte(p1) << 1) | boolToByte(p0)
-
-				a1 := (p.bgShifterAttribH & uint16(mux)) > 0
-				a0 := (p.bgShifterAttribL & uint16(mux)) > 0
-				paletteIdx |= ((boolToByte(a1) << 1) | boolToByte(a0)) << 2
+				bgPixel = (boolToByte((p.bgShifterPatternH & uint16(mux)) > 0) << 1) | boolToByte((p.bgShifterPatternL & uint16(mux)) > 0)
+				bgPaletteIdx = ((boolToByte((p.bgShifterAttribH & uint16(mux)) > 0) << 1) | boolToByte((p.bgShifterAttribL & uint16(mux)) > 0)) << 2
 			}
-			p.pixels[p.scanline*256+p.cycle] = p.palette[p.ppuRead(0x3F00+uint16(paletteIdx))%0x40]
+
+			var spritePixel byte = 0
+			var spritePaletteIdx byte = 0
+			var spritePriority byte = 0
+
+			if p.PPUMASK&(1<<4) != 0 { // If sprite rendering is enabled
+				for i := 0; i < p.spriteCount; i++ {
+					sX := p.spriteX[i]
+					if p.cycle >= int(sX) && p.cycle < int(sX+8) {
+						// Calculate pixel within sprite
+						offset := byte(p.cycle) - sX
+						
+						// Get pixel from sprite pattern data
+						p1 := (p.spritePatternH[i] >> (7 - offset)) & 1
+						p0 := (p.spritePatternL[i] >> (7 - offset)) & 1
+						
+						spritePixel = (p1 << 1) | p0
+						
+						if spritePixel > 0 { // If sprite pixel is opaque
+							spritePaletteIdx = (p.spriteAttribute[i] & 0x03) << 2 // Get palette from attributes
+							spritePriority = (p.spriteAttribute[i] >> 5) & 1    // Get priority from attributes
+
+							if i == 0 && bgPixel > 0 && p.cycle != 255 { // Sprite 0 hit detection
+								p.PPUSTATUS |= 0x40 // Set sprite 0 hit flag
+							}
+							break // Only render the first opaque sprite
+						}
+					}
+				}
+			}
+
+			// Mix background and sprite pixels
+			finalPixel := bgPixel
+			finalPalette := bgPaletteIdx
+
+			if bgPixel == 0 && spritePixel > 0 { // Background is transparent, sprite is opaque
+				finalPixel = spritePixel
+				finalPalette = spritePaletteIdx + 0x10 // Sprite palettes are 0x10-0x1F
+			} else if bgPixel > 0 && spritePixel > 0 { // Both opaque
+				if spritePriority == 0 { // Sprite has priority
+					finalPixel = spritePixel
+					finalPalette = spritePaletteIdx + 0x10
+				}
+				// If spritePriority == 1, background has priority, so bgPixel and bgPaletteIdx remain
+			}
+			p.pixels[p.scanline*256+p.cycle] = p.palette[p.ppuRead(0x3F00+uint16(finalPixel|finalPalette))%0x40]
 		}
 
 		if (p.cycle >= 2 && p.cycle < 258) || (p.cycle >= 322 && p.cycle < 338) {
@@ -273,6 +373,10 @@ func (p *PPU) Clock() {
 					p.vramAddr = (p.vramAddr & ^uint16(0x03E0)) | (y << 5)
 				}
 			}
+		}
+
+		if p.cycle == 320 {
+			p.fetchSpriteData()
 		}
 
 		if p.scanline == -1 && p.cycle >= 280 && p.cycle < 305 {
@@ -364,4 +468,66 @@ func (p *PPU) Write(addr uint16, data byte) {
 	case 0x4014:
 		p.OAMDMA = data
 	}
+}
+
+	// DoOAMDMA performs Direct Memory Access from CPU memory to OAM.
+func (p *PPU) DoOAMDMA(page byte, cpuRead func(uint16) byte) {
+	dmaAddr := uint16(page) << 8 
+	
+	for i := 0; i < 256; i++ {
+		p.oam[(p.OAMADDR + byte(i)) & 0xFF] = cpuRead(dmaAddr + uint16(i))
+	}
+}
+
+func (p *PPU) fetchSpriteData() {
+	spriteHeight := byte(8)
+	if p.PPUCTRL&(1<<5) != 0 { // 8x16 sprites
+		spriteHeight = 16
+	}
+
+	for i := 0; i < p.spriteCount; i++ {
+		s := p.scanlineSprites[i]
+
+		// Determine sprite pattern table address
+		var patternTableAddr uint16
+		if spriteHeight == 8 {
+			if p.PPUCTRL&(1<<3) != 0 { // Sprite pattern table address from PPUCTRL
+				patternTableAddr = 0x1000
+			} else {
+				patternTableAddr = 0x0000
+			}
+			patternTableAddr += uint16(s.tile) * 16 // Each tile is 16 bytes (8 for LSB, 8 for MSB)
+		} else { // 8x16 sprites
+			patternTableAddr = (uint16(s.tile&1) * 0x1000) + (uint16(s.tile&0xFE) * 16)
+		}
+
+		// Calculate row within tile
+		rowInTile := byte(p.scanline) - s.y
+		if s.attrs&(1<<7) != 0 { // Vertical flip
+			rowInTile = spriteHeight - 1 - rowInTile
+		}
+		
+		// Read LSB and MSB
+		lsb := p.ppuRead(patternTableAddr + uint16(rowInTile))
+		msb := p.ppuRead(patternTableAddr + uint16(rowInTile) + 8)
+
+		// Horizontal flip
+		if s.attrs&(1<<6) != 0 {
+			lsb = reverseByte(lsb)
+			msb = reverseByte(msb)
+		}
+
+		p.spritePatternL[i] = lsb
+		p.spritePatternH[i] = msb
+		p.spriteAttribute[i] = s.attrs
+		p.spriteX[i] = s.x
+	}
+}
+
+// Helper to reverse bits in a byte for horizontal flip
+func reverseByte(b byte) byte {
+	b = (b & 0xF0) >> 4 | (b & 0x0F) << 4
+	b = (b & 0xCC) >> 2 | (b & 0x33) << 2
+	b = (b & 0xAA) >> 1 | (b & 0x55) << 1
+	return b
 }
