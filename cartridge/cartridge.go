@@ -5,6 +5,15 @@ import (
 	"os"
 )
 
+// Mirroring types
+const (
+	MirrorHorizontal     byte = 0
+	MirrorVertical       byte = 1
+	MirrorOneScreenLower byte = 2
+	MirrorOneScreenUpper byte = 3
+	MirrorFourScreen     byte = 4
+)
+
 // Cartridge represents an NES cartridge.
 type Cartridge struct {
 	PRGROM []byte

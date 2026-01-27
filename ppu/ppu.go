@@ -1,10 +1,16 @@
 package ppu
 
-import "github.com/meadori/vibemulator/cartridge"
+import (
+	"image/color" // Will need this for palette definition, even if not used directly here
+
+	"github.com/meadori/vibemulator/cartridge" // Keep this import for Mirroring constants
+	"github.com/meadori/vibemulator/mapper"     // Import mapper package
+)
 
 // PPU represents the Picture Processing Unit.
 type PPU struct {
-	cart *cartridge.Cartridge
+	cart *cartridge.Cartridge // Keep for general info for now, might be removed later
+	mapper mapper.Mapper     // New mapper field
 	vram [2048]byte
 	oam  [256]byte
 	palette [32]byte
@@ -56,9 +62,14 @@ func New() *PPU {
 	return &PPU{}
 }
 
-// ConnectCartridge connects a cartridge to the PPU.
+// ConnectCartridge connects a cartridge to the PPU. (Minimal use now, mainly for mapper)
 func (p *PPU) ConnectCartridge(cart *cartridge.Cartridge) {
 	p.cart = cart
+}
+
+// ConnectMapper connects the PPU to the mapper for CHR access and mirroring.
+func (p *PPU) ConnectMapper(m mapper.Mapper) {
+	p.mapper = m
 }
 
 func boolToByte(b bool) byte {
@@ -70,23 +81,54 @@ func boolToByte(b bool) byte {
 
 func (p *PPU) ppuWrite(addr uint16, data byte) {
 	addr &= 0x3FFF
+
 	if addr >= 0x0000 && addr <= 0x1FFF {
-		// CHR ROM is usually read-only
+		// CHR-RAM, delegated to mapper
+		if p.mapper != nil {
+			if p.mapper.PPUMapWrite(addr, data) {
+				return // Handled by mapper
+			}
+		}
+		return // Not handled by mapper (CHR-ROM is read-only)
 	} else if addr >= 0x2000 && addr <= 0x3EFF {
-		p.vram[(addr&0x0FFF)&0x07FF] = data
+		// Name Tables (VRAM), apply mirroring
+		addr &= 0x0FFF // Maps PPU addresses $2000-$3EFF to $000-$0FFF range.
+		
+		// Apply mirroring logic
+		var mirroredAddr uint16
+		if p.mapper != nil {
+			switch p.mapper.GetMirroring() {
+			case cartridge.MirrorHorizontal: // Horizontal mirroring
+				// $2000-$23FF, $2800-$2BFF -> VRAM $000-$3FF
+				// $2400-$27FF, $2C00-$2EFF -> VRAM $400-$7FF
+				mirroredAddr = addr
+				if mirroredAddr >= 0x0800 { // If in NT2/NT3 range
+					mirroredAddr -= 0x0800 // Map to NT0/NT1 physical space
+				}
+				mirroredAddr &= 0x07FF // Ensure within 2KB (0x000-0x7FF)
+			case cartridge.MirrorVertical: // Vertical mirroring
+				// $2000-$23FF, $2400-$27FF -> VRAM $000-$3FF (NT0/NT2)
+				// $2800-$2BFF, $2C00-$2EFF -> VRAM $400-$7FF (NT1/NT3)
+				mirroredAddr = addr & 0x07FF // All map to 0x000-0x7FF
+			case cartridge.MirrorOneScreenLower:
+				mirroredAddr = addr & 0x03FF // Map to first 1KB
+			case cartridge.MirrorOneScreenUpper:
+				mirroredAddr = (addr & 0x03FF) + 0x0400 // Map to second 1KB
+			default:
+				// Fallback, for now, use 2KB mapping without explicit mirroring logic
+				mirroredAddr = addr & 0x07FF
+			}
+		} else {
+			// No mapper, fall back to simple 2KB VRAM mapping
+			mirroredAddr = addr & 0x07FF
+		}
+		
+		p.vram[mirroredAddr] = data // Use mirroredAddr
 	} else if addr >= 0x3F00 && addr <= 0x3FFF {
-		addr &= 0x001F
-		if addr == 0x0010 {
-			addr = 0x0000
-		}
-		if addr == 0x0014 {
-			addr = 0x0004
-		}
-		if addr == 0x0018 {
-			addr = 0x0008
-		}
-		if addr == 0x001C {
-			addr = 0x000C
+		// Palette RAM
+		addr &= 0x001F // 32-byte palette RAM, mirrored
+		if addr == 0x0010 || addr == 0x0014 || addr == 0x0018 || addr == 0x001C { // Special mirroring for background color
+			addr -= 0x10 // Map to $3F00, $3F04, $3F08, $3F0C
 		}
 		p.palette[addr] = data
 	}
@@ -95,22 +137,46 @@ func (p *PPU) ppuWrite(addr uint16, data byte) {
 func (p *PPU) ppuRead(addr uint16) byte {
 	addr &= 0x3FFF
 	if addr >= 0x0000 && addr <= 0x1FFF {
-		return p.cart.CHRROM[addr]
+		// CHR-ROM / CHR-RAM, delegated to mapper
+		if p.mapper != nil {
+			data, handled := p.mapper.PPUMapRead(addr)
+			if handled {
+				return data
+			}
+		}
+		return 0 // Open bus if mapper doesn't handle
 	} else if addr >= 0x2000 && addr <= 0x3EFF {
-		return p.vram[(addr&0x0FFF)&0x07FF]
+		// Name Tables (VRAM), apply mirroring
+		addr &= 0x0FFF // Maps PPU addresses $2000-$3EFF to $000-$0FFF range.
+		
+		// Apply mirroring logic (same as ppuWrite)
+		var mirroredAddr uint16
+		if p.mapper != nil {
+			switch p.mapper.GetMirroring() {
+			case cartridge.MirrorHorizontal:
+				mirroredAddr = addr
+				if mirroredAddr >= 0x0800 {
+					mirroredAddr -= 0x0800
+				}
+				mirroredAddr &= 0x07FF
+			case cartridge.MirrorVertical:
+				mirroredAddr = addr & 0x07FF
+			case cartridge.MirrorOneScreenLower:
+				mirroredAddr = addr & 0x03FF
+			case cartridge.MirrorOneScreenUpper:
+				mirroredAddr = (addr & 0x03FF) + 0x0400
+			default:
+				mirroredAddr = addr & 0x07FF
+			}
+		} else {
+			mirroredAddr = addr & 0x07FF
+		}
+		return p.vram[mirroredAddr]
 	} else if addr >= 0x3F00 && addr <= 0x3FFF {
+		// Palette RAM
 		addr &= 0x001F
-		if addr == 0x0010 {
-			addr = 0x0000
-		}
-		if addr == 0x0014 {
-			addr = 0x0004
-		}
-		if addr == 0x0018 {
-			addr = 0x0008
-		}
-		if addr == 0x001C {
-			addr = 0x000C
+		if addr == 0x0010 || addr == 0x0014 || addr == 0x0018 || addr == 0x001C {
+			addr -= 0x10
 		}
 		return p.palette[addr]
 	}
