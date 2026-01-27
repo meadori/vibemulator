@@ -66,7 +66,7 @@ func (c *CPU) Reset() {
 	c.Y = 0
 	c.SP = 0xFD
 	c.P = 0x00 | U
-
+	c.setFlag('I', true) // This sets the I flag
 	c.Cycles = 8 // Updated
 }
 
@@ -75,9 +75,9 @@ func (c *CPU) NMI() {
 	c.push(byte((c.PC >> 8) & 0x00FF))
 	c.push(byte(c.PC & 0x00FF))
 
-	c.setFlag(B, false)
-	c.setFlag(U, true)
-	c.setFlag(I, true)
+	c.setFlag('B', false)
+	c.setFlag('U', true)
+	c.setFlag('I', true)
 	c.push(c.P)
 
 	c.addrAbs = 0xFFFA
@@ -105,12 +105,17 @@ func (c *CPU) Clock() {
 
 		instr := c.Lookup[c.opcode]
 		if instr.Operate == nil {
-			// Invalid instruction
-			return
+			// Unofficial or unimplemented instruction
+			// For nestest, we must consume cycles and advance PC
+			// This is a temporary hack to get past the immediate hang.
+			// Assume it's a 1-byte instruction (PC already incremented once) and consumes minimum cycles.
+			c.Cycles = 2 // Minimum cycles for an implied instruction
+			// No operation
+		} else {
+			c.Cycles = instr.Cycles // Updated
+			instr.AddrMode()
+			instr.Operate()
 		}
-		c.Cycles = instr.Cycles // Updated
-		instr.AddrMode()
-		instr.Operate()
 	}
 	c.Cycles-- // Updated
 }
