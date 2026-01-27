@@ -19,6 +19,10 @@ test: deps
 	@echo "Running tests..."
 	@go test $(GO_PACKAGES)
 
+nestest: deps
+	@echo "Running nestest CPU test..."
+	@go run nestest/main.go ~/Stuff/roms/nestest.nes
+
 clean:
 	@echo "Cleaning build artifacts..."
 	@rm -f $(GO_BINARY)

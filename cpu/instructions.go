@@ -251,7 +251,7 @@ func (c *CPU) abx() {
 	c.addrAbs += uint16(c.X)
 
 	if (c.addrAbs & 0xFF00) != (hi << 8) {
-		c.cycles++
+		c.Cycles++ // Updated
 	}
 }
 
@@ -264,7 +264,7 @@ func (c *CPU) aby() {
 	c.addrAbs += uint16(c.Y)
 
 	if (c.addrAbs & 0xFF00) != (hi << 8) {
-		c.cycles++
+		c.Cycles++ // Updated
 	}
 }
 
@@ -299,7 +299,7 @@ func (c *CPU) izy() {
 	c.addrAbs += uint16(c.Y)
 
 	if (c.addrAbs & 0xFF00) != (hi << 8) {
-		c.cycles++
+		c.Cycles++ // Updated
 	}
 }
 
@@ -490,7 +490,7 @@ func (c *CPU) ror() {
 	c.setFlag('C', c.fetched&1 != 0)
 	c.setFlag('Z', (temp&0x00FF) == 0)
 	c.setFlag('N', temp&0x0080 != 0)
-	if c.lookup[c.opcode].AddrModeName == "imp" {
+	if c.Lookup[c.opcode].AddrModeName == "imp" {
 		c.A = byte(temp & 0x00FF)
 	} else {
 		c.bus.Write(c.addrAbs, byte(temp&0x00FF))
@@ -503,7 +503,7 @@ func (c *CPU) rol() {
 	c.setFlag('C', temp > 0xFF)
 	c.setFlag('Z', (temp&0x00FF) == 0)
 	c.setFlag('N', temp&0x0080 != 0)
-	if c.lookup[c.opcode].AddrModeName == "imp" {
+	if c.Lookup[c.opcode].AddrModeName == "imp" {
 		c.A = byte(temp & 0x00FF)
 	} else {
 		c.bus.Write(c.addrAbs, byte(temp&0x00FF))
@@ -516,7 +516,7 @@ func (c *CPU) lsr() {
 	temp := c.fetched >> 1
 	c.setFlag('Z', temp == 0)
 	c.setFlag('N', temp&0x80 != 0)
-	if c.lookup[c.opcode].AddrModeName == "imp" {
+	if c.Lookup[c.opcode].AddrModeName == "imp" {
 		c.A = temp
 	} else {
 		c.bus.Write(c.addrAbs, temp)
@@ -529,7 +529,7 @@ func (c *CPU) asl() {
 	c.setFlag('C', temp > 0xFF)
 	c.setFlag('Z', (temp&0x00FF) == 0)
 	c.setFlag('N', temp&0x0080 != 0)
-	if c.lookup[c.opcode].AddrModeName == "imp" {
+	if c.Lookup[c.opcode].AddrModeName == "imp" {
 		c.A = byte(temp & 0x00FF)
 	} else {
 		c.bus.Write(c.addrAbs, byte(temp&0x00FF))
@@ -537,10 +537,10 @@ func (c *CPU) asl() {
 }
 
 func (c *CPU) branch() {
-	c.cycles++
+	c.Cycles++ // Updated
 	c.addrAbs = c.PC + c.addrRel
 	if (c.addrAbs & 0xFF00) != (c.PC & 0xFF00) {
-		c.cycles++
+		c.Cycles++ // Updated
 	}
 	c.PC = c.addrAbs
 }
@@ -684,7 +684,7 @@ func (c *CPU) bit() {
 }
 
 func (c *CPU) fetch() {
-	if c.lookup[c.opcode].AddrModeName != "imp" {
+	if c.Lookup[c.opcode].AddrModeName != "imp" {
 		c.fetched = c.bus.Read(c.addrAbs)
 	}
 }

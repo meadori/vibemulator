@@ -1,5 +1,9 @@
 package cpu
 
+import (
+	"fmt"
+)
+
 // Bus defines the interface for the CPU to interact with the bus.
 type Bus interface {
 	Read(addr uint16) byte
@@ -29,8 +33,8 @@ type CPU struct {
 	bus Bus
 
 	opcode  byte
-	cycles  int
-	lookup  [256]Instruction
+	Cycles  int // Exported
+	Lookup  [256]Instruction
 
 	fetched uint8
 	addrAbs uint16
@@ -41,7 +45,7 @@ type CPU struct {
 // New creates a new CPU instance.
 func New() *CPU {
 	c := &CPU{}
-	c.lookup = c.createLookupTable()
+	c.Lookup = c.createLookupTable()
 	return c
 }
 
@@ -63,7 +67,7 @@ func (c *CPU) Reset() {
 	c.SP = 0xFD
 	c.P = 0x00 | U
 
-	c.cycles = 8
+	c.Cycles = 8 // Updated
 }
 
 // NMI is a non-maskable interrupt.
@@ -81,24 +85,32 @@ func (c *CPU) NMI() {
 	hi := uint16(c.bus.Read(c.addrAbs + 1))
 	c.PC = (hi << 8) | lo
 
-	c.cycles = 8
+	c.Cycles = 8 // Updated
 }
+
+// LogState prints the current CPU state in a nestest-like format.
+func (c *CPU) LogState() string {
+	// PPU cycle count and total cycles are omitted for now as they are not directly available in CPU struct.
+	// P-register flags are displayed as a hex value.
+	return fmt.Sprintf("%04X A:%02X X:%02X Y:%02X P:%02X SP:%02X",
+		c.PC, c.A, c.X, c.Y, c.P, c.SP)
+}
+
 
 // Clock performs one clock cycle.
 func (c *CPU) Clock() {
-	if c.cycles == 0 {
+	if c.Cycles == 0 { // Updated
 		c.opcode = c.bus.Read(c.PC)
 		c.PC++
 
-		instr := c.lookup[c.opcode]
+		instr := c.Lookup[c.opcode]
 		if instr.Operate == nil {
 			// Invalid instruction
 			return
 		}
-		c.cycles = instr.Cycles
+		c.Cycles = instr.Cycles // Updated
 		instr.AddrMode()
 		instr.Operate()
 	}
-	c.cycles--
+	c.Cycles-- // Updated
 }
-
