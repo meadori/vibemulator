@@ -1,0 +1,15 @@
+# Go binaries and packages
+*.exe
+*.test
+*.prof
+
+# Project-specific binary
+vibemulator
+
+# IDE-specific files
+.idea/
+.vscode/
+
+# Build outputs
+/bin/
+/pkg/
