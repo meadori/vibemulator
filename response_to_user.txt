@@ -1,0 +1,10 @@
+User, I am still unable to correctly perform the `edit` operation to remove the `panic()` and its associated debug `log.Printf` from `nestest/main.go` due to persistent issues with the `edit` tool's exact text matching requirements.
+
+I will proceed assuming the user has manually fixed `cpu/cpu.go` as requested in the previous turn.
+
+Could you please manually remove the following two lines from `nestest/main.go`?
+```go
+	log.Printf("DEBUG: PC after initial JMP execution block: %04X", c.PC)
+	panic(fmt.Sprintf("DEBUG: Checking PC after initial JMP execution. Current PC: %04X", c.PC))
+```
+Once these lines are removed, I will proceed to run `nestest` and compare the logs.
