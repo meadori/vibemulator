@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/meadori/vibemulator/cartridge"
 	"github.com/meadori/vibemulator/cpu"
