@@ -36,15 +36,12 @@ func main() {
 
 	// nestest expects PC to be 0xC000 after reset, so we rely on the ROM's reset vector.
 
-	// Load PRG ROM into mockBus
-	// nestest ROM is typically 16KB PRG ROM (Mirrored)
-	copy(mockBus.Ram[0x8000:], cart.PRGROM)
-	if len(cart.PRGROM) == 16384 { // If 16KB PRG ROM, mirror it
-		copy(mockBus.Ram[0xC000:], cart.PRGROM)
-	} else { // Otherwise assume 32KB
-		copy(mockBus.Ram[0xC000:], cart.PRGROM[16384:])
-	}
-	
+	// Load PRG ROM into mockBus for nestest
+	// Assume nestest code is in the first 16KB of PRGROM, and mirror it.
+	// This handles both 16KB and 32KB nestest ROMs consistently for the test.
+	copy(mockBus.Ram[0x8000:], cart.PRGROM[:16384]) // Copy first 16KB to 0x8000
+	copy(mockBus.Ram[0xC000:], cart.PRGROM[:16384]) // Mirror first 16KB to 0xC000
+
 	// Reset CPU
 	c.Reset()
 	// c.Reset() will set c.PC based on the ROM's reset vector.
