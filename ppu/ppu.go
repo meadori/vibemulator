@@ -73,7 +73,7 @@ func (p *PPU) ppuWrite(addr uint16, data byte) {
 	if addr >= 0x0000 && addr <= 0x1FFF {
 		// CHR ROM is usually read-only
 	} else if addr >= 0x2000 && addr <= 0x3EFF {
-		p.vram[addr&0x0FFF] = data
+		p.vram[(addr&0x0FFF)&0x07FF] = data
 	} else if addr >= 0x3F00 && addr <= 0x3FFF {
 		addr &= 0x001F
 		if addr == 0x0010 {
@@ -97,7 +97,7 @@ func (p *PPU) ppuRead(addr uint16) byte {
 	if addr >= 0x0000 && addr <= 0x1FFF {
 		return p.cart.CHRROM[addr]
 	} else if addr >= 0x2000 && addr <= 0x3EFF {
-		return p.vram[addr&0x0FFF]
+		return p.vram[(addr&0x0FFF)&0x07FF]
 	} else if addr >= 0x3F00 && addr <= 0x3FFF {
 		addr &= 0x001F
 		if addr == 0x0010 {

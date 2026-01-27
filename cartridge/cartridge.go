@@ -27,8 +27,17 @@ func New(path string) (*Cartridge, error) {
 	}
 
 	c := &Cartridge{}
-	c.PRGROM = data[16 : 16+int(data[4])*16384]
-	c.CHRROM = data[16+int(data[4])*16384:]
+	prgRomSize := int(data[4]) * 16384
+	chrRomSize := int(data[5]) * 8192
+
+	c.PRGROM = data[16 : 16+prgRomSize]
+	
+	if chrRomSize > 0 {
+		c.CHRROM = data[16+prgRomSize : 16+prgRomSize+chrRomSize]
+	} else {
+		// Allocate CHR RAM if no CHR ROM is present
+		c.CHRROM = make([]byte, 8192) // Common size for CHR RAM
+	}
 	c.Mapper = (data[6] >> 4) | (data[7] & 0xF0)
 	c.Mirror = (data[6] & 1) | ((data[6] >> 3) & 2)
 
