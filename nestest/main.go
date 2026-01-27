@@ -10,35 +10,17 @@ import (
 
 // mockBus is a simple RAM implementation for the CPU to interact with.
 type mockBus struct {
-	ram [65536]byte
+	Ram [65536]byte // Make Ram public
 }
 
 func (b *mockBus) Read(addr uint16) byte {
-	return b.ram[addr]
+	return b.Ram[addr] // Use Ram
 }
 
 func (b *mockBus) Write(addr uint16, data byte) {
-	b.ram[addr] = data
+	b.Ram[addr] = data // Use Ram
 }
 
-// executeOneInstruction fully executes a single CPU instruction.
-func executeOneInstruction(c *cpu.CPU, mockBus *mockBus) {
-	// Clock any remaining cycles from previous operations (e.g., Reset)
-	for c.Cycles > 0 { // Updated to c.Cycles
-		c.Clock()
-	}
-
-	// Determine cycles for the next instruction *before* Clock() fetches it.
-	// We need to read the opcode from the bus associated with the CPU's PC
-	opcode := mockBus.Read(c.PC)
-	instr := c.Lookup[opcode] // Use c.Lookup now that it's public
-	cyclesToConsume := instr.Cycles
-
-	// Clock the CPU until this instruction is fully executed.
-	for i := 0; i < cyclesToConsume; i++ {
-		c.Clock()
-	}
-}
 
 func main() {
 	romPath := "nestest/testdata/nestest.nes" // Hardcoded path
@@ -52,47 +34,56 @@ func main() {
 	mockBus := &mockBus{}
 	c.ConnectBus(mockBus)
 
+	// Set Reset vector for nestest
+	// nestest expects PC to be 0xC000 after reset, so set reset vector to 0xC000
+	mockBus.Ram[0xFFFC] = 0x00
+	mockBus.Ram[0xFFFD] = 0xC0
+
 	// Load PRG ROM into mockBus
 	// nestest ROM is typically 16KB PRG ROM (Mirrored)
-	copy(mockBus.ram[0x8000:], cart.PRGROM)
+	copy(mockBus.Ram[0x8000:], cart.PRGROM)
 	if len(cart.PRGROM) == 16384 { // If 16KB PRG ROM, mirror it
-		copy(mockBus.ram[0xC000:], cart.PRGROM)
+		copy(mockBus.Ram[0xC000:], cart.PRGROM)
 	} else { // Otherwise assume 32KB
-		copy(mockBus.ram[0xC000:], cart.PRGROM[16384:])
+		copy(mockBus.Ram[0xC000:], cart.PRGROM[16384:])
 	}
 	
 
 	// Reset CPU
 	c.Reset()
-	// After Reset, c.Cycles is 8. Clock these away so CPU is ready to fetch.
-	for i := 0; i < 8; i++ { // Changed from c.cycles to c.Cycles (Clock() will use c.Cycles)
-		c.Clock()
-	}
-
-	// For nestest.nes, execution typically starts at 0xC000.
-	// The Reset vector in nestest usually points to 0xC000.
-	// We explicitly set PC to 0xC000 to match nestest's expectation.
-	// If the cart.PRGROM was 32K, then the 2nd bank would be at 0xC000
-	// If the cart.PRGROM was 16K, then it would be mirrored to 0xC000
-	c.PC = 0xC000
-	
+	// c.Reset() will set c.PC based on the reset vector (0xC000) and set c.Cycles = 8.
 	// nestest requires initial SP to be 0xFD
 	c.SP = 0xFD
+
+	// Clock away initial reset cycles (8 cycles for 6502)
+	for c.Cycles > 0 {
+        c.Clock()
+    }
 
 	// Loop and execute instructions, logging state
 	for i := 0; i < 100000; i++ { // Limit to 100,000 instructions for now
 		fmt.Println(c.LogState())
 		
+		// The Clock() method itself fetches instructions when c.Cycles becomes 0.
+		// So we just need to keep calling Clock until a new instruction is fetched
+		// and its cycles consumed.
+		
+		// If c.Cycles is 0, the next Clock call will fetch an instruction and set c.Cycles.
+		// If c.Cycles is > 0 (from previous instruction), we just clock it down.
+		if c.Cycles == 0 {
+			c.Clock() // Fetch first byte of new instruction, set c.Cycles
+		}
+		for c.Cycles > 0 { // Clock all cycles for the current instruction
+			c.Clock()
+		}
+
 		// Break conditions for nestest (usually a specific instruction or PC)
 		// nestest will typically loop at a specific address (e.g., 0xC66A or 0xE000-ish) when finished.
-		// For now, just a loop limit.
-		if c.PC == 0xC669 { // This is an example from some nestest runners.
+		if c.PC == 0xC669 { // Example of a known end point for a nestest run.
 			break
 		}
 		if c.PC == 0xE000 { // Another common end point.
 			break
 		}
-
-		executeOneInstruction(c, mockBus)
 	}
 }
