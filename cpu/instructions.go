@@ -408,7 +408,7 @@ func (c *CPU) sbc() {
 	temp := uint16(c.A) - uint16(c.fetched) - (1 - uint16(c.getFlag('C')))
 	c.setFlag('C', temp < 0x100)
 	c.setFlag('Z', (temp&0x00FF) == 0)
-	c.setFlag('V', (temp^uint16(c.A))&(temp^uint16(c.fetched))&0x0080 != 0)
+	c.setFlag('V', ((uint16(c.A) ^ temp) & (0x00FF ^ uint16(c.fetched) ^ temp)) & 0x0080 != 0)
 	c.setFlag('N', temp&0x0080 != 0)
 	c.A = byte(temp & 0x00FF)
 }
@@ -418,7 +418,7 @@ func (c *CPU) adc() {
 	temp := uint16(c.A) + uint16(c.fetched) + uint16(c.getFlag('C'))
 	c.setFlag('C', temp > 255)
 	c.setFlag('Z', (temp&0x00FF) == 0)
-	c.setFlag('V', (^(uint16(c.A) ^ uint16(c.fetched)) & (uint16(c.A) ^ temp)) & 0x0080 != 0)
+	c.setFlag('V', ((uint16(c.A) ^ temp) & (uint16(c.fetched) ^ temp)) & 0x0080 != 0)
 	c.setFlag('N', temp&0x80 != 0)
 	c.A = byte(temp & 0x00FF)
 }
