@@ -34,10 +34,7 @@ func main() {
 	mockBus := &mockBus{}
 	c.ConnectBus(mockBus)
 
-	// Set Reset vector for nestest
-	// nestest expects PC to be 0xC000 after reset, so set reset vector to 0xC000
-	mockBus.Ram[0xFFFC] = 0x00
-	mockBus.Ram[0xFFFD] = 0xC0
+	// nestest expects PC to be 0xC000 after reset, so we rely on the ROM's reset vector.
 
 	// Load PRG ROM into mockBus
 	// nestest ROM is typically 16KB PRG ROM (Mirrored)
@@ -48,10 +45,12 @@ func main() {
 		copy(mockBus.Ram[0xC000:], cart.PRGROM[16384:])
 	}
 	
-
 	// Reset CPU
 	c.Reset()
-	// c.Reset() will set c.PC based on the reset vector (0xC000) and set c.Cycles = 8.
+	// c.Reset() will set c.PC based on the ROM's reset vector.
+	// For nestest, we want to start execution at 0xC000 regardless.
+	c.PC = 0xC000 // Explicitly set PC to 0xC000 for nestest
+
 	// nestest requires initial SP to be 0xFD
 	c.SP = 0xFD
 
