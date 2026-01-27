@@ -1,8 +1,6 @@
 package ppu
 
 import (
-	"image/color" // Will need this for palette definition, even if not used directly here
-
 	"github.com/meadori/vibemulator/cartridge" // Keep this import for Mirroring constants
 	"github.com/meadori/vibemulator/mapper"     // Import mapper package
 )

@@ -25,7 +25,11 @@ func main() {
 	}
 
 	b := bus.New()
-	b.LoadCartridge(cart)
+	err = b.LoadCartridge(cart)
+	if err != nil {
+		fmt.Println("Error loading cartridge into bus:", err)
+		os.Exit(1)
+	}
 
 	d := display.New(b)
 	if err := ebiten.RunGame(d); err != nil {
