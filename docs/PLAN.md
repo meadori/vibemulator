@@ -2,6 +2,15 @@
 
 This document outlines the development plan for the vibemulator NES emulator.
 
+## Next Steps / High Priority
+
+- [ ] Implement PPU sprite rendering
+- [ ] Add support for more mappers (e.g., MMC1, UxROM)
+- [ ] Implement missing CPU opcodes and IRQ handling
+- [ ] Add controller support
+- [ ] Fix screen mirroring bug in cartridge loading
+- [ ] Implement sound (APU)
+
 ## Milestones
 
 ### Milestone 1: Basic CPU Implementation
