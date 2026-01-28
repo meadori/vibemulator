@@ -1,6 +1,7 @@
 package ppu
 
 import (
+	"fmt"
 	"github.com/meadori/vibemulator/cartridge" // Keep this import for Mirroring constants
 	"github.com/meadori/vibemulator/mapper"     // Import mapper package
 )
@@ -293,7 +294,21 @@ func (p *PPU) Clock() {
 				}
 				// If spritePriority == 1, background has priority, so bgPixel and bgPaletteIdx remain
 			}
-			p.pixels[p.scanline*256+p.cycle] = p.palette[p.ppuRead(0x3F00+uint16(finalPixel|finalPalette))%0x40]
+			// Debugging for PPUCTRL and PPUMASK at start of frame
+			if p.scanline == -1 && p.cycle == 1 {
+				fmt.Printf("PPUCTRL: %02X, PPUMASK: %02X\n", p.PPUCTRL, p.PPUMASK)
+			}
+
+			// Debugging for pixel values (sample a few pixels on scanline 0)
+			if p.scanline == 0 && (p.cycle == 0 || p.cycle == 1 || p.cycle == 255) { // Log first and last pixel of scanline 0
+				paletteAddr := 0x3F00 + uint16(finalPixel|finalPalette)
+				colorIndex := p.ppuRead(paletteAddr) % 0x40
+				fmt.Printf("Scanline: %d, Cycle: %d, PPUCTRL: %02X, PPUMASK: %02X, BG:%d, SP:%d, FinalPxl:%d, FinalPal:%d, PalAddr:%04X, ColorIdx:%02X\n",
+					p.scanline, p.cycle, p.PPUCTRL, p.PPUMASK, bgPixel, spritePixel, finalPixel, finalPalette, paletteAddr, colorIndex)
+				p.pixels[p.scanline*256+p.cycle] = p.palette[colorIndex]
+			} else if p.scanline >= 0 && p.cycle < 256 {
+				p.pixels[p.scanline*256+p.cycle] = p.palette[p.ppuRead(0x3F00+uint16(finalPixel|finalPalette))%0x40]
+			}
 		}
 
 		if (p.cycle >= 2 && p.cycle < 258) || (p.cycle >= 322 && p.cycle < 338) {
