@@ -57,8 +57,6 @@ type PPU struct {
 	scanlineSprites []sprite
 	spriteCount     int
 
-	spritePatternL  [8]byte // LSB of sprite pixel patterns for current scanline
-	spritePatternH  [8]byte // MSB of sprite pixel patterns for current scanline
 	spriteAttribute [8]byte // Attributes for sprites on current scanline
 	spriteX         [8]byte // X positions for sprites on current scanline
 
@@ -265,20 +263,12 @@ func (p *PPU) Clock() {
 
 			if p.PPUMASK&(1<<4) != 0 { // If sprite rendering is enabled
 				for i := 0; i < p.spriteCount; i++ {
-					sX := p.spriteX[i]
-					if p.cycle >= int(sX) && p.cycle < int(sX+8) {
-						// Calculate pixel within sprite
-						offset := byte(p.cycle) - sX
-						
-						// Get pixel from sprite pattern data
-						p1 := (p.spritePatternH[i] >> (7 - offset)) & 1
-						p0 := (p.spritePatternL[i] >> (7 - offset)) & 1
-						
-						spritePixel = (p1 << 1) | p0
-						
-						if spritePixel > 0 { // If sprite pixel is opaque
-							spritePaletteIdx = (p.spriteAttribute[i] & 0x03) << 2 // Get palette from attributes
-							spritePriority = (p.spriteAttribute[i] >> 5) & 1    // Get priority from attributes
+					if p.cycle >= int(p.spriteX[i]) && p.cycle < int(p.spriteX[i]+8) {
+						pixelIndex := p.cycle - int(p.spriteX[i])
+						spritePixel = p.spritePixels[pixelIndex].colorIndex
+						if spritePixel > 0 {
+							spritePaletteIdx = (p.spriteAttribute[i] & 0x03) << 2
+							spritePriority = p.spritePixels[pixelIndex].priority
 
 							if i == 0 && bgPixel > 0 && p.cycle != 255 { // Sprite 0 hit detection
 								p.PPUSTATUS |= 0x40 // Set sprite 0 hit flag
@@ -517,10 +507,16 @@ func (p *PPU) fetchSpriteData() {
 			msb = reverseByte(msb)
 		}
 
-		p.spritePatternL[i] = lsb
-		p.spritePatternH[i] = msb
 		p.spriteAttribute[i] = s.attrs
 		p.spriteX[i] = s.x
+		
+		// This is the new part: populate spritePixels
+		for j := 0; j < 8; j++ {
+			p1 := (msb >> (7 - j)) & 1
+			p0 := (lsb >> (7 - j)) & 1
+			p.spritePixels[j].colorIndex = (p1 << 1) | p0
+			p.spritePixels[j].priority = (s.attrs >> 5) & 1
+		}
 	}
 }
 
