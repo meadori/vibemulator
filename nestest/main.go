@@ -56,122 +56,103 @@ func main() {
 	// Our ROM has JMP $C5F5 at C000. We execute this once and then align our cycle counts.
 
 	// First instruction at C000 is JMP $C5F5 (opcode 0x4C)
-	opcodeInitialJMP := mockBus.Read(c.PC)
-	instrInitialJMP := c.Lookup[opcodeInitialJMP]
+	// opcodeInitialJMP := mockBus.Read(c.PC)
+	// instrInitialJMP := c.Lookup[opcodeInitialJMP]
 
-	// Ensure it's actually a JMP instruction (opcode 0x4C)
-	if opcodeInitialJMP != 0x4C {
-		log.Fatalf("Expected JMP $C5F5 (opcode 0x4C) at 0xC000, but found 0x%02X. Cannot align nestest.", opcodeInitialJMP)
-	}
+	// // Ensure it's actually a JMP instruction (opcode 0x4C)
+	// if opcodeInitialJMP != 0x4C {
+	// 	log.Fatalf("Expected JMP $C5F5 (opcode 0x4C) at 0xC000, but found 0x%02X. Cannot align nestest.", opcodeInitialJMP)
+	// }
 
-	// Execute the initial JMP instruction. This should consume 3 CPU cycles.
-	cyclesConsumedByInitialJMP := instrInitialJMP.Cycles
-	for j := 0; j < cyclesConsumedByInitialJMP; j++ {
-		c.Clock()
-	}
-	// At this point, c.PC should be $C5F5, and 3 CPU cycles (9 PPU cycles) have passed.
+	// // Execute the initial JMP instruction. This should consume 3 CPU cycles.
+	// cyclesConsumedByInitialJMP := instrInitialJMP.Cycles
+	// for j := 0; j < cyclesConsumedByInitialJMP; j++ {
+	// 	c.Clock()
+	// }
+	// // At this point, c.PC should be $C5F5, and 3 CPU cycles (9 PPU cycles) have passed.
 
 	// Now, initialize totalCycles and totalPpuCycles to align with the golden log's
 	// state *after* the JMP would have completed and *before* the first LDX #$00 is logged.
 	// The golden log shows the first LDX #$00 at C000 (which we interpret as C5F5 in our ROM)
 	// with PPU:  0, 27 and CYC:9.
-	totalCycles := 9    // CYC:9 after JMP, before LDX
-	totalPpuCycles := 27 // PPU:  0, 27 after JMP, before LDX
+	totalCycles := 7    // CYC:7 before first instruction
+	totalPpuCycles := 21 // PPU:  0, 21 before first instruction
 
 	// Loop and execute instructions, logging state
 	for i := 0; i < 100000; i++ {
-        // --- PREPARE FOR LOGGING ---
-        // Capture CPU state *before* executing the current instruction
-        pcToLog := c.PC
-        aToLog := c.A
-        xToLog := c.X
-        yToLog := c.Y
-        pToLog := c.P
-        spToLog := c.SP
+		if c.Cycles == 0 {
+			// --- PREPARE FOR LOGGING ---
+			// Capture CPU state *before* executing the current instruction
+			pcToLog := c.PC
+			aToLog := c.A
+			xToLog := c.X
+			yToLog := c.Y
+			pToLog := c.P
+			spToLog := c.SP
 
-        // Read opcode and instruction details for logging
-        opcodeToLog := mockBus.Read(pcToLog)
-        instrToLog := c.Lookup[opcodeToLog]
-        
-        // Determine cycles this instruction will take
-        cyclesThisInstruction := instrToLog.Cycles
-        if instrToLog.Operate == nil {
-            cyclesThisInstruction = 2 // Default for unimplemented
-        }
+			// Read opcode and instruction details for logging
+			opcodeToLog := mockBus.Read(pcToLog)
+			instrToLog := c.Lookup[opcodeToLog]
+			
+			// Construct the instruction and operand part of the log line for formatting
+			opCodeAndOperandsRawPadded := ""
+			operand1 := byte(0)
+			operand2 := byte(0)
+			switch instrToLog.AddrModeName {
+			case "imm", "zp0", "zpx", "zpy", "rel", "izx", "izy":
+				operand1 = mockBus.Read(pcToLog + 1)
+				opCodeAndOperandsRawPadded = fmt.Sprintf("%02X %02X", opcodeToLog, operand1)
+			case "abs", "abx", "aby", "ind", "jsr":
+				operand1 = mockBus.Read(pcToLog + 1)
+				operand2 = mockBus.Read(pcToLog + 2)
+				opCodeAndOperandsRawPadded = fmt.Sprintf("%02X %02X %02X", opcodeToLog, operand1, operand2)
+			case "imp":
+				opCodeAndOperandsRawPadded = fmt.Sprintf("%02X", opcodeToLog)
+			default:
+				opCodeAndOperandsRawPadded = fmt.Sprintf("%02X", opcodeToLog) // Default for unknown addressing modes
+			}
 
-        // --- EXECUTE THE INSTRUCTION ---
-        for j := 0; j < cyclesThisInstruction; j++ {
-            c.Clock()
-        }
-        // At this point, c.PC has advanced to the *next* instruction's address.
-        // The current instruction has completed, and its cycles consumed.
+			// Construct the instruction disassembly string
+			instructionDisassembly := ""
+			switch instrToLog.AddrModeName {
+			case "imp": instructionDisassembly = fmt.Sprintf("%s", instrToLog.Name)
+			case "imm": instructionDisassembly = fmt.Sprintf("%s #$%02X", instrToLog.Name, operand1)
+			case "zp0": instructionDisassembly = fmt.Sprintf("%s $%02X", instrToLog.Name, operand1)
+			case "zpx": instructionDisassembly = fmt.Sprintf("%s $%02X,X", instrToLog.Name, operand1)
+			case "zpy": instructionDisassembly = fmt.Sprintf("%s $%02X,Y", instrToLog.Name, operand1)
+			case "rel":
+				targetAddr := (pcToLog + uint16(2) + uint16(int8(operand1))) & 0xFFFF
+				instructionDisassembly = fmt.Sprintf("%s $%04X", instrToLog.Name, targetAddr)
+			case "abs": instructionDisassembly = fmt.Sprintf("%s $%04X", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
+			case "abx": instructionDisassembly = fmt.Sprintf("%s $%04X,X", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
+			case "aby": instructionDisassembly = fmt.Sprintf("%s $%04X,Y", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
+			case "ind": instructionDisassembly = fmt.Sprintf("%s ($%04X)", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
+			case "izx": instructionDisassembly = fmt.Sprintf("%s ($%02X,X)", instrToLog.Name, operand1)
+			case "izy": instructionDisassembly = fmt.Sprintf("%s ($%02X),Y", instrToLog.Name, operand1)
+			default: instructionDisassembly = fmt.Sprintf("%s ???", instrToLog.Name)
+			}
 
-        // --- UPDATE TOTAL CYCLES ---
-        // The totalCycles should represent the cycles *after* this instruction has been processed.
-        // The golden log has CYC as the cycle count *before* the instruction shown on the line starts.
-        // So, the totalCycles for the next iteration needs to reflect this.
-        totalCycles += cyclesThisInstruction
-        totalPpuCycles += cyclesThisInstruction * 3
+			// Final log line construction
+			logLine := fmt.Sprintf("%04X  %-8s %-32s A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d CYC:%d",
+				pcToLog,
+				opCodeAndOperandsRawPadded,
+				instructionDisassembly,
+				aToLog, xToLog, yToLog, pToLog, spToLog,
+				totalPpuCycles / 341,
+				totalPpuCycles % 341,
+				totalCycles,
+			)
 
-        // --- FORMAT AND PRINT LOG LINE ---
-        ppuScanline := (totalPpuCycles - (cyclesThisInstruction * 3)) / 341 // PPU Scanline at start of instruction
-        ppuPixel := (totalPpuCycles - (cyclesThisInstruction * 3)) % 341 // PPU Pixel at start of instruction
-        
-        // Construct the instruction and operand part of the log line for formatting
-        opCodeAndOperandsRawPadded := ""
-        operand1 := byte(0)
-        operand2 := byte(0)
-        switch instrToLog.AddrModeName {
-        case "imm", "zp0", "zpx", "zpy", "rel", "izx", "izy":
-            operand1 = mockBus.Read(pcToLog + 1)
-            opCodeAndOperandsRawPadded = fmt.Sprintf("%02X %02X", opcodeToLog, operand1)
-        case "abs", "abx", "aby", "ind", "jsr":
-            operand1 = mockBus.Read(pcToLog + 1)
-            operand2 = mockBus.Read(pcToLog + 2)
-            opCodeAndOperandsRawPadded = fmt.Sprintf("%02X %02X %02X", opcodeToLog, operand1, operand2)
-        case "imp":
-            opCodeAndOperandsRawPadded = fmt.Sprintf("%02X", opcodeToLog)
-        default:
-            opCodeAndOperandsRawPadded = fmt.Sprintf("%02X", opcodeToLog) // Default for unknown addressing modes
-        }
+			fmt.Println(logLine)
 
-        // Construct the instruction disassembly string
-        instructionDisassembly := ""
-        switch instrToLog.AddrModeName {
-        case "imp": instructionDisassembly = fmt.Sprintf("%s", instrToLog.Name)
-        case "imm": instructionDisassembly = fmt.Sprintf("%s #$%02X", instrToLog.Name, operand1)
-        case "zp0": instructionDisassembly = fmt.Sprintf("%s $%02X", instrToLog.Name, operand1)
-        case "zpx": instructionDisassembly = fmt.Sprintf("%s $%02X,X", instrToLog.Name, operand1)
-        case "zpy": instructionDisassembly = fmt.Sprintf("%s $%02X,Y", instrToLog.Name, operand1)
-        case "rel":
-            targetAddr := (pcToLog + uint16(2) + uint16(int8(operand1))) & 0xFFFF
-            instructionDisassembly = fmt.Sprintf("%s $%04X", instrToLog.Name, targetAddr)
-        case "abs": instructionDisassembly = fmt.Sprintf("%s $%04X", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
-        case "abx": instructionDisassembly = fmt.Sprintf("%s $%04X,X", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
-        case "aby": instructionDisassembly = fmt.Sprintf("%s $%04X,Y", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
-        case "ind": instructionDisassembly = fmt.Sprintf("%s ($%04X)", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
-        case "izx": instructionDisassembly = fmt.Sprintf("%s ($%02X,X)", instrToLog.Name, operand1)
-        case "izy": instructionDisassembly = fmt.Sprintf("%s ($%02X),Y", instrToLog.Name, operand1)
-        default: instructionDisassembly = fmt.Sprintf("%s ???", instrToLog.Name)
-        }
-
-        // Final log line construction
-        logLine := fmt.Sprintf("%04X  %-8s %-32s A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d CYC:%d",
-            pcToLog,
-            opCodeAndOperandsRawPadded,
-            instructionDisassembly,
-            aToLog, xToLog, yToLog, pToLog, spToLog,
-            ppuScanline,
-            ppuPixel,
-            totalCycles - cyclesThisInstruction, // This is the change! CYC should be BEFORE the current instruction's cycles
-        )
-
-        fmt.Println(logLine)
-
-		// Break conditions for nestest (usually a specific instruction or PC)
-		// nestest will typically loop at a specific address (e.g., 0xC66A or 0xE000-ish) when finished.
-		if c.PC == 0xC669 { // Example of a known end point for a nestest run.
-			break
+			// Break conditions for nestest (usually a specific instruction or PC)
+			if pcToLog == 0xC669 { // Example of a known end point for a nestest run.
+				break
+			}
 		}
+
+		c.Clock()
+		totalCycles++
+		totalPpuCycles += 3
 	}
 }

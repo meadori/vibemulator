@@ -18,15 +18,15 @@ func (b *mockBus) Write(addr uint16, data byte) {
 
 func executeOneInstruction(c *CPU) {
 	// First, clock any remaining cycles from previous operations (e.g., Reset)
-	for c.cycles > 0 {
+	for c.Cycles > 0 {
 		c.Clock()
 	}
 
-	// Now c.cycles is 0, the next Clock() call will fetch and process the instruction.
+	// Now c.Cycles is 0, the next Clock() call will fetch and process the instruction.
 	// We need to determine the total cycles this instruction will consume *after* it's fetched.
 	// This requires peeking at the opcode at c.PC before Clock() consumes it.
 	opcode := c.bus.Read(c.PC)
-	instr := c.lookup[opcode]
+	instr := c.Lookup[opcode]
 	cyclesToConsume := instr.Cycles
 
 	// Clock the CPU until this instruction is fully executed.
@@ -42,7 +42,7 @@ func setupCPU(t *testing.T) (*CPU, *mockBus) {
 	bus := &mockBus{}
 	c.ConnectBus(bus)
 	c.Reset()
-	// After Reset, c.cycles is 8. Clock these away so CPU is ready to fetch.
+	// After Reset, c.Cycles is 8. Clock these away so CPU is ready to fetch.
 	for i := 0; i < 8; i++ {
 		c.Clock()
 	}

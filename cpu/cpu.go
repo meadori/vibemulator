@@ -99,30 +99,34 @@ func (c *CPU) LogState() string {
 
 // Clock performs one clock cycle.
 func (c *CPU) Clock() {
-	if c.Cycles == 0 { // Updated
+	if c.Cycles == 0 {
 		c.opcode = c.bus.Read(c.PC)
 		c.PC++
 
 		instr := c.Lookup[c.opcode]
-		if instr.Operate == nil {
-			// Unofficial or unimplemented instruction
-			// For nestest, we must consume cycles and advance PC
-			// This is a temporary hack to get past the immediate hang.
-			// Assume it's a 1-byte instruction (PC already incremented once) and consumes minimum cycles.
-			c.Cycles = 2 // Minimum cycles for an implied instruction
-			// No operation
-		} else {
-			c.Cycles = instr.Cycles // Updated
-			instr.AddrMode()
-			instr.Operate()
-		}
+		c.Cycles = instr.Cycles
+		addedCycle1 := instr.AddrMode()
+		addedCycle2 := instr.Operate()
+		c.Cycles += int(addedCycle1 + addedCycle2)
+
 	}
-	c.Cycles-- // Updated
+	c.Cycles--
 }
+
+func (c *CPU) push(data byte) {
+	c.bus.Write(0x0100+uint16(c.SP), data)
+	c.SP--
+}
+
+func (c *CPU) pop() byte {
+	c.SP++
+	return c.bus.Read(0x0100 + uint16(c.SP))
+}
+
 
 // createLookupTable creates and returns the 6502 instruction lookup table.
 func (c *CPU) createLookupTable() [256]Instruction {
-	return [256]Instruction{
+	lookup := [256]Instruction{
 		// LDA
 		0xA9: {"LDA", c.lda, c.imm, "imm", 2},
 		0xA5: {"LDA", c.lda, c.zp0, "zp0", 3},
@@ -133,8 +137,22 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0xA1: {"LDA", c.lda, c.izx, "izx", 6},
 		0xB1: {"LDA", c.lda, c.izy, "izy", 5},
 
-		// LDX
-		0xA2: {"LDX", c.ldx, c.imm, "imm", 2},
+		// Unofficial Load (LAS)
+		0xBB: {"LAS", c.las, c.aby, "aby", 4}, // LAS (LAR)
+
+		// Unofficial Load (LAX)
+		0xA7: {"LAX", c.lax, c.zp0, "zp0", 3},
+		0xB7: {"LAX", c.lax, c.zpy, "zpy", 4},
+		0xAF: {"LAX", c.lax, c.abs, "abs", 4},
+		0xBF: {"LAX", c.lax, c.aby, "aby", 4},
+		0xA3: {"LAX", c.lax, c.izx, "izx", 6},
+				0xB3: {"LAX", c.lax, c.izy, "izy", 5},
+		
+				// Unofficial Load (LXA)
+				0xAB: {"LXA", c.nop, c.imm, "imm", 2}, // LXA (LAX immediate) - Unstable, treat as NOP
+		
+				// LDX
+				0xA2: {"LDX", c.ldx, c.imm, "imm", 2},
 		0xA6: {"LDX", c.ldx, c.zp0, "zp0", 3},
 		0xB6: {"LDX", c.ldx, c.zpy, "zpy", 4},
 		0xAE: {"LDX", c.ldx, c.abs, "abs", 4},
@@ -165,6 +183,12 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0x84: {"STY", c.sty, c.zp0, "zp0", 3},
 		0x94: {"STY", c.sty, c.zpx, "zpx", 4},
 		0x8C: {"STY", c.sty, c.abs, "abs", 4},
+
+		// Unofficial Store (SAX)
+		0x87: {"SAX", c.sax, c.zp0, "zp0", 3},
+		0x97: {"SAX", c.sax, c.zpy, "zpy", 4}, // zpy for SAX, not zpx
+		0x8F: {"SAX", c.sax, c.abs, "abs", 4},
+		0x83: {"SAX", c.sax, c.izx, "izx", 6},
 
 		// Arithmetic
 		0x69: {"ADC", c.adc, c.imm, "imm", 2},
@@ -198,6 +222,25 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0xCA: {"DEX", c.dex, c.imp, "imp", 2},
 		0x88: {"DEY", c.dey, c.imp, "imp", 2},
 
+		// Unofficial Increment/Decrement (DCP)
+		0xC7: {"DCP", c.dcp, c.zp0, "zp0", 5},
+		0xD7: {"DCP", c.dcp, c.zpx, "zpx", 6},
+		0xCF: {"DCP", c.dcp, c.abs, "abs", 6},
+		0xDF: {"DCP", c.dcp, c.abx, "abx", 7},
+		0xDB: {"DCP", c.dcp, c.aby, "aby", 7},
+		0xC3: {"DCP", c.dcp, c.izx, "izx", 8},
+		0xD3: {"DCP", c.dcp, c.izy, "izy", 8},
+
+		// Unofficial Arithmetic (ISC)
+		0xE7: {"ISC", c.isc, c.zp0, "zp0", 5},
+		0xF7: {"ISC", c.isc, c.zpx, "zpx", 6},
+		0xEF: {"ISC", c.isc, c.abs, "abs", 6},
+		0xFF: {"ISC", c.isc, c.abx, "abx", 7},
+		0xFB: {"ISC", c.isc, c.aby, "aby", 7},
+		0xE3: {"ISC", c.isc, c.izx, "izx", 8},
+		0xF3: {"ISC", c.isc, c.izy, "izy", 8},
+
+
 		// Logical
 		0x29: {"AND", c.and, c.imm, "imm", 2},
 		0x25: {"AND", c.and, c.zp0, "zp0", 3},
@@ -223,6 +266,33 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0x59: {"EOR", c.eor, c.aby, "aby", 4},
 		0x41: {"EOR", c.eor, c.izx, "izx", 6},
 		0x51: {"EOR", c.eor, c.izy, "izy", 5},
+
+		// Unofficial Logical
+		0x0B: {"ANC", c.anc, c.imm, "imm", 2}, // ANC
+		0x2B: {"ANC", c.anc, c.imm, "imm", 2}, // ANC2
+		0x4B: {"ALR", c.alr, c.imm, "imm", 2}, // ALR (ASR)
+		0x8B: {"ANE", c.nop, c.imm, "imm", 2}, // ANE (XAA) - Unstable, treat as NOP
+		0x6B: {"ARR", c.arr, c.imm, "imm", 2}, // ARR
+
+		// Unofficial Shift/Rotate (RLA)
+		0x27: {"RLA", c.rla, c.zp0, "zp0", 5},
+		0x37: {"RLA", c.rla, c.zpx, "zpx", 6},
+		0x2F: {"RLA", c.rla, c.abs, "abs", 6},
+		0x3F: {"RLA", c.rla, c.abx, "abx", 7},
+		0x3B: {"RLA", c.rla, c.aby, "aby", 7},
+		0x23: {"RLA", c.rla, c.izx, "izx", 8},
+		0x33: {"RLA", c.rla, c.izy, "izy", 8},
+
+		// Unofficial Shift/Rotate (RRA)
+		0x67: {"RRA", c.rra, c.zp0, "zp0", 5},
+		0x77: {"RRA", c.rra, c.zpx, "zpx", 6},
+		0x6F: {"RRA", c.rra, c.abs, "abs", 6},
+		0x7F: {"RRA", c.rra, c.abx, "abx", 7},
+		0x7B: {"RRA", c.rra, c.aby, "aby", 7},
+		0x63: {"RRA", c.rra, c.izx, "izx", 8},
+		0x73: {"RRA", c.rra, c.izy, "izy", 8},
+
+
 
 		// Shift/Rotate
 		0x0A: {"ASL", c.asl, c.imp, "imp", 2},
@@ -306,58 +376,69 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0x98: {"TYA", c.tya, c.imp, "imp", 2},
 		0xBA: {"TSX", c.tsx, c.imp, "imp", 2},
 		0x9A: {"TXS", c.txs, c.imp, "imp", 2},
-
-		// Unofficial Opcodes (for nestest)
-
 	}
+
+	for i := 0; i < 256; i++ {
+		if lookup[i].Operate == nil {
+			lookup[i] = Instruction{"XXX", c.nop, c.imp, "imp", 2}
+		}
+	}
+	return lookup
 }
 
 
 // Addressing Modes
 
-func (c *CPU) imp() {
+func (c *CPU) imp() byte {
 	c.fetched = c.A
+	return 0
 }
 
-func (c *CPU) imm() {
+func (c *CPU) imm() byte {
 	c.addrAbs = c.PC
 	c.PC++
+	return 0
 }
 
-func (c *CPU) zp0() {
+func (c *CPU) zp0() byte {
 	c.addrAbs = uint16(c.bus.Read(c.PC))
 	c.PC++
+	return 0
 }
 
-func (c *CPU) zpx() {
+func (c *CPU) zpx() byte {
 	c.addrAbs = uint16(c.bus.Read(c.PC) + c.X)
 	c.PC++
 	c.addrAbs &= 0x00FF
+	return 0
 }
 
-func (c *CPU) zpy() {
+func (c *CPU) zpy() byte {
 	c.addrAbs = uint16(c.bus.Read(c.PC) + c.Y)
 	c.PC++
 	c.addrAbs &= 0x00FF
+	return 0
 }
 
-func (c *CPU) rel() {
+func (c *CPU) rel() byte {
 	c.addrRel = uint16(c.bus.Read(c.PC))
 	c.PC++
 	if c.addrRel&0x80 != 0 {
 		c.addrRel |= 0xFF00
 	}
+	return 0
 }
 
-func (c *CPU) abs() {
+func (c *CPU) abs() byte {
 	lo := uint16(c.bus.Read(c.PC))
 	c.PC++
 	hi := uint16(c.bus.Read(c.PC))
 	c.PC++
 	c.addrAbs = (hi << 8) | lo
+	return 0
 }
 
-func (c *CPU) abx() {
+func (c *CPU) abx() byte {
 	lo := uint16(c.bus.Read(c.PC))
 	c.PC++
 	hi := uint16(c.bus.Read(c.PC))
@@ -366,11 +447,12 @@ func (c *CPU) abx() {
 	c.addrAbs += uint16(c.X)
 
 	if (c.addrAbs & 0xFF00) != (hi << 8) {
-		c.Cycles++ // Updated
+		return 1
 	}
+	return 0
 }
 
-func (c *CPU) aby() {
+func (c *CPU) aby() byte {
 	lo := uint16(c.bus.Read(c.PC))
 	c.PC++
 	hi := uint16(c.bus.Read(c.PC))
@@ -379,11 +461,12 @@ func (c *CPU) aby() {
 	c.addrAbs += uint16(c.Y)
 
 	if (c.addrAbs & 0xFF00) != (hi << 8) {
-		c.Cycles++ // Updated
+		return 1
 	}
+	return 0
 }
 
-func (c *CPU) ind() {
+func (c *CPU) ind() byte {
 	ptrLo := uint16(c.bus.Read(c.PC))
 	c.PC++
 	ptrHi := uint16(c.bus.Read(c.PC))
@@ -395,17 +478,19 @@ func (c *CPU) ind() {
 	} else {
 		c.addrAbs = (uint16(c.bus.Read(ptr+1)) << 8) | uint16(c.bus.Read(ptr))
 	}
+	return 0
 }
 
-func (c *CPU) izx() {
+func (c *CPU) izx() byte {
 	t := uint16(c.bus.Read(c.PC))
 	c.PC++
 	lo := uint16(c.bus.Read((t + uint16(c.X)) & 0x00FF))
 	hi := uint16(c.bus.Read((t + uint16(c.X) + 1) & 0x00FF))
 	c.addrAbs = (hi << 8) | lo
+	return 0
 }
 
-func (c *CPU) izy() {
+func (c *CPU) izy() byte {
 	t := uint16(c.bus.Read(c.PC))
 	c.PC++
 	lo := uint16(c.bus.Read(t & 0x00FF))
@@ -414,111 +499,144 @@ func (c *CPU) izy() {
 	c.addrAbs += uint16(c.Y)
 
 	if (c.addrAbs & 0xFF00) != (hi << 8) {
-		c.Cycles++ // Updated
+		return 1
 	}
+	return 0
 }
 
 // Instructions
 
-func (c *CPU) ldy() {
+func (c *CPU) ldy() byte {
 	c.fetch()
 	c.Y = c.fetched
 	c.setFlag('Z', c.Y == 0)
 	c.setFlag('N', c.Y&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) ldx() {
+func (c *CPU) ldx() byte {
 	c.fetch()
 	c.X = c.fetched
 	c.setFlag('Z', c.X == 0)
 	c.setFlag('N', c.X&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) sty() {
+func (c *CPU) sty() byte {
 	c.bus.Write(c.addrAbs, c.Y)
+	return 0
 }
 
-func (c *CPU) stx() {
+func (c *CPU) stx() byte {
 	c.bus.Write(c.addrAbs, c.X)
+	return 0
 }
 
-func (c *CPU) sta() {
+func (c *CPU) sta() byte {
 	c.bus.Write(c.addrAbs, c.A)
+	return 0
 }
 
-func (c *CPU) plp() {
+func (c *CPU) sax() byte {
+	val := c.A & c.X
+	c.bus.Write(c.addrAbs, val)
+	return 0
+}
+
+func (c *CPU) plp() byte {
 	c.P = c.pop()
 	c.setFlag(U, true)
+	return 0
 }
 
-func (c *CPU) php() {
+func (c *CPU) php() byte {
 	c.push(c.P | B | U)
 	c.setFlag(B, false)
 	c.setFlag(U, false)
+	return 0
 }
 
-func (c *CPU) pla() {
+func (c *CPU) pla() byte {
 	c.A = c.pop()
 	c.setFlag('Z', c.A == 0)
 	c.setFlag('N', c.A&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) pha() {
+func (c *CPU) pha() byte {
 	c.push(c.A)
+	return 0
 }
 
-func (c *CPU) push(data byte) {
-	c.bus.Write(0x0100+uint16(c.SP), data)
-	c.SP--
-}
-
-func (c *CPU) pop() byte {
-	c.SP++
-	return c.bus.Read(0x0100 + uint16(c.SP))
-}
-
-func (c *CPU) tya() {
+func (c *CPU) tya() byte {
 	c.A = c.Y
 	c.setFlag('Z', c.A == 0)
 	c.setFlag('N', c.A&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) tay() {
+func (c *CPU) tay() byte {
 	c.Y = c.A
 	c.setFlag('Z', c.Y == 0)
 	c.setFlag('N', c.Y&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) txa() {
+func (c *CPU) txa() byte {
 	c.A = c.X
 	c.setFlag('Z', c.A == 0)
 	c.setFlag('N', c.A&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) tsx() {
+func (c *CPU) tsx() byte {
 	c.X = c.SP
 	c.setFlag('Z', c.X == 0)
 	c.setFlag('N', c.X&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) txs() {
+func (c *CPU) txs() byte {
 	c.SP = c.X
+	return 0
 }
 
-func (c *CPU) tax() {
+func (c *CPU) tax() byte {
 	c.X = c.A
 	c.setFlag('Z', c.X == 0)
 	c.setFlag('N', c.X&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) lda() {
+func (c *CPU) lda() byte {
 	c.fetch()
 	c.A = c.fetched
 	c.setFlag('Z', c.A == 0)
 	c.setFlag('N', c.A&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) sbc() {
+func (c *CPU) las() byte {
+	c.fetch()
+	val := c.fetched & c.SP
+	c.A = val
+	c.X = val
+	c.SP = val
+	c.setFlag('Z', val == 0)
+	c.setFlag('N', val&0x80 != 0)
+	return 0
+}
+
+func (c *CPU) lax() byte {
+	c.fetch()
+	c.A = c.fetched
+	c.X = c.A // TAX operation
+	c.setFlag('Z', c.A == 0)
+	c.setFlag('N', c.A&0x80 != 0)
+	return 0
+}
+
+func (c *CPU) sbc() byte {
 	c.fetch()
 	temp := uint16(c.A) - uint16(c.fetched) - (1 - uint16(c.getFlag('C')))
 	c.setFlag('C', temp < 0x100)
@@ -526,9 +644,10 @@ func (c *CPU) sbc() {
 	c.setFlag('V', ((uint16(c.A) ^ temp) & (0x00FF ^ uint16(c.fetched) ^ temp)) & 0x0080 != 0)
 	c.setFlag('N', temp&0x0080 != 0)
 	c.A = byte(temp & 0x00FF)
+	return 1
 }
 
-func (c *CPU) adc() {
+func (c *CPU) adc() byte {
 	c.fetch()
 	temp := uint16(c.A) + uint16(c.fetched) + uint16(c.getFlag('C'))
 	c.setFlag('C', temp > 255)
@@ -536,70 +655,364 @@ func (c *CPU) adc() {
 	c.setFlag('V', ((uint16(c.A) ^ temp) & (uint16(c.fetched) ^ temp)) & 0x0080 != 0)
 	c.setFlag('N', temp&0x80 != 0)
 	c.A = byte(temp & 0x00FF)
+	return 1
 }
 
-func (c *CPU) dey() {
+func (c *CPU) dey() byte {
 	c.Y--
 	c.setFlag('Z', c.Y == 0)
 	c.setFlag('N', c.Y&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) dex() {
+func (c *CPU) dex() byte {
 	c.X--
 	c.setFlag('Z', c.X == 0)
 	c.setFlag('N', c.X&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) dec() {
+func (c *CPU) dec() byte {
 	c.fetch()
 	temp := c.fetched - 1
 	c.bus.Write(c.addrAbs, temp)
 	c.setFlag('Z', temp == 0)
 	c.setFlag('N', temp&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) iny() {
+func (c *CPU) iny() byte {
 	c.Y++
 	c.setFlag('Z', c.Y == 0)
 	c.setFlag('N', c.Y&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) inx() {
+func (c *CPU) inx() byte {
 	c.X++
 	c.setFlag('Z', c.X == 0)
 	c.setFlag('N', c.X&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) inc() {
+func (c *CPU) inc() byte {
+
 	c.fetch()
+
 	temp := c.fetched + 1
+
 	c.bus.Write(c.addrAbs, temp)
+
 	c.setFlag('Z', temp == 0)
+
 	c.setFlag('N', temp&0x80 != 0)
+
+	return 0
+
 }
 
-func (c *CPU) eor() {
+
+
+func (c *CPU) dcp() byte {
+
+
+
 	c.fetch()
+
+
+
+	// DEC operation
+
+
+
+	temp := c.fetched - 1
+
+
+
+	c.bus.Write(c.addrAbs, temp)
+
+
+
+
+
+
+
+	// CMP operation
+
+
+
+	res := c.A - temp
+
+
+
+	c.setFlag('C', c.A >= temp)
+
+
+
+	c.setFlag('Z', res == 0)
+
+
+
+	c.setFlag('N', res&0x80 != 0)
+
+
+
+	return 0
+
+
+
+}
+
+
+
+
+
+
+
+func (c *CPU) isc() byte {
+
+
+
+	c.fetch()
+
+
+
+	// INC operation
+
+
+
+	temp := c.fetched + 1
+
+
+
+	c.bus.Write(c.addrAbs, temp)
+
+
+
+
+
+
+
+	// SBC operation (similar to regular SBC, but with the incremented value)
+
+
+
+	// For SBC, effective_value = fetched_value (temp in this case)
+
+
+
+	// A - effective_value - (1 - C)
+
+
+
+	// temp := uint16(c.A) - uint16(c.fetched) - (1 - uint16(c.getFlag('C')))  // original sbc
+
+
+
+	sbcVal := uint16(temp)
+
+
+
+	res := uint16(c.A) - sbcVal - (1 - uint16(c.getFlag('C')))
+
+
+
+
+
+
+
+	c.setFlag('C', res < 0x100) // If borrow, C is clear
+
+
+
+	c.setFlag('Z', (res&0x00FF) == 0)
+
+
+
+	// Overflow logic for SBC: (A^res) & (fetched^res) & 0x80
+
+
+
+	// For ISC, fetched is the incremented value (temp)
+
+
+
+	c.setFlag('V', ((uint16(c.A) ^ res) & (sbcVal ^ res)) & 0x0080 != 0)
+
+
+
+	c.setFlag('N', res&0x0080 != 0)
+
+
+
+	c.A = byte(res & 0x00FF)
+
+
+
+	return 0
+
+
+
+}
+
+
+
+
+
+
+
+func (c *CPU) eor() byte {
+
+
+
+
+
+
+
+	c.fetch()
+
+
+
+
+
+
+
 	c.A = c.A ^ c.fetched
+
+
+
+
+
+
+
 	c.setFlag('Z', c.A == 0)
+
+
+
+
+
+
+
 	c.setFlag('N', c.A&0x80 != 0)
+
+
+
+
+
+
+
+	return 0
+
+
+
+
+
+
+
 }
 
-func (c *CPU) ora() {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+func (c *CPU) anc() byte {
+
+
+
+
+
+
+
 	c.fetch()
-	c.A = c.A | c.fetched
+
+
+
+
+
+
+
+	c.A = c.A & c.fetched
+
+
+
+
+
+
+
 	c.setFlag('Z', c.A == 0)
+
+
+
+
+
+
+
 	c.setFlag('N', c.A&0x80 != 0)
+
+
+
+
+
+
+
+	c.setFlag('C', c.getFlag('N') == 1) // Set Carry flag to the value of the Negative flag
+
+
+
+
+
+
+
+	return 0
+
+
+
+
+
+
+
 }
 
-func (c *CPU) and() {
+func (c *CPU) and() byte {
 	c.fetch()
 	c.A = c.A & c.fetched
 	c.setFlag('Z', c.A == 0)
 	c.setFlag('N', c.A&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) ror() {
+func (c *CPU) ora() byte {
+	c.fetch()
+	c.A = c.A | c.fetched
+	c.setFlag('Z', c.A == 0)
+	c.setFlag('N', c.A&0x80 != 0)
+	return 0
+}
+
+func (c *CPU) alr() byte {
+	c.fetch()
+	c.A = c.A & c.fetched
+	c.setFlag('Z', c.A == 0)
+	c.setFlag('N', c.A&0x80 != 0)
+
+	c.setFlag('C', c.A&1 != 0)
+	c.A = c.A >> 1
+	c.setFlag('Z', c.A == 0)
+	c.setFlag('N', c.A&0x80 != 0)
+	return 0
+}
+
+func (c *CPU) ror() byte {
 	c.fetch()
 	temp := uint16(c.fetched) >> 1 | uint16(c.getFlag('C'))<<7
 	c.setFlag('C', c.fetched&1 != 0)
@@ -610,9 +1023,34 @@ func (c *CPU) ror() {
 	} else {
 		c.bus.Write(c.addrAbs, byte(temp&0x00FF))
 	}
+	return 0
 }
 
-func (c *CPU) rol() {
+func (c *CPU) arr() byte {
+	c.fetch()
+	c.A = c.A & c.fetched
+	c.setFlag('Z', c.A == 0)
+	c.setFlag('N', c.A&0x80 != 0)
+
+	// ROR operation
+	oldC := c.getFlag('C')
+	c.setFlag('C', c.A&1 != 0)
+	c.A = (c.A >> 1) | (oldC << 7)
+
+	// Update N, Z flags based on new A
+	c.setFlag('Z', c.A == 0)
+	c.setFlag('N', c.A&0x80 != 0)
+
+	// ARR specific V flag update
+	// V flag is set if bit 6 and bit 5 are different after the ROR.
+	// (c.A>>6)&1 checks bit 6, (c.A>>5)&1 checks bit 5
+	// XORing them checks if they are different.
+	c.setFlag('V', ((c.A>>6)&1)^((c.A>>5)&1) != 0)
+
+	return 0
+}
+
+func (c *CPU) rol() byte {
 	c.fetch()
 	temp := uint16(c.fetched) << 1 | uint16(c.getFlag('C'))
 	c.setFlag('C', temp > 0xFF)
@@ -623,9 +1061,10 @@ func (c *CPU) rol() {
 	} else {
 		c.bus.Write(c.addrAbs, byte(temp&0x00FF))
 	}
+	return 0
 }
 
-func (c *CPU) lsr() {
+func (c *CPU) lsr() byte {
 	c.fetch()
 	c.setFlag('C', c.fetched&1 != 0)
 	temp := c.fetched >> 1
@@ -636,9 +1075,10 @@ func (c *CPU) lsr() {
 	} else {
 		c.bus.Write(c.addrAbs, temp)
 	}
+	return 0
 }
 
-func (c *CPU) asl() {
+func (c *CPU) asl() byte {
 	c.fetch()
 	temp := uint16(c.fetched) << 1
 	c.setFlag('C', temp > 0xFF)
@@ -649,159 +1089,229 @@ func (c *CPU) asl() {
 	} else {
 		c.bus.Write(c.addrAbs, byte(temp&0x00FF))
 	}
+	return 0
 }
 
-func (c *CPU) branch() {
-	c.Cycles++ // Updated
-	c.addrAbs = c.PC + c.addrRel
-	if (c.addrAbs & 0xFF00) != (c.PC & 0xFF00) {
-		c.Cycles++ // Updated
-	}
-	c.PC = c.addrAbs
+func (c *CPU) rla() byte {
+	c.fetch()
+	val := c.fetched
+
+	// ROL operation
+	oldC := c.getFlag('C')
+	c.setFlag('C', val&0x80 != 0)
+	val = (val << 1) | oldC
+
+	c.bus.Write(c.addrAbs, val) // Write back rotated value
+
+	// AND operation
+	c.A = c.A & val
+	c.setFlag('Z', c.A == 0)
+	c.setFlag('N', c.A&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) bvs() {
+func (c *CPU) rra() byte {
+	c.fetch()
+	val := c.fetched
+
+	// ROR operation
+	oldC := c.getFlag('C')
+	c.setFlag('C', val&1 != 0)
+	val = (val >> 1) | (oldC << 7)
+
+	c.bus.Write(c.addrAbs, val) // Write back rotated value
+
+	// ADC operation (similar to regular ADC, but with the rotated value)
+	// For ADC, effective_value = val
+	adcVal := uint16(val)
+	res := uint16(c.A) + adcVal + uint16(c.getFlag('C'))
+
+	c.setFlag('C', res > 255)
+	c.setFlag('Z', (res&0x00FF) == 0)
+	c.setFlag('V', ((uint16(c.A) ^ res) & (adcVal ^ res)) & 0x0080 != 0)
+	c.setFlag('N', res&0x80 != 0)
+	c.A = byte(res & 0x00FF)
+	return 0
+}
+
+func (c *CPU) bvs() byte {
 	if c.getFlag('V') == 1 {
 		c.branch()
 	}
+	return 0
 }
 
-func (c *CPU) bvc() {
+func (c *CPU) bvc() byte {
 	if c.getFlag('V') == 0 {
 		c.branch()
 	}
+	return 0
 }
 
-func (c *CPU) bpl() {
+func (c *CPU) bpl() byte {
 	if c.getFlag('N') == 0 {
 		c.branch()
 	}
+	return 0
 }
 
-func (c *CPU) bne() {
+func (c *CPU) bne() byte {
 	if c.getFlag('Z') == 0 {
 		c.branch()
 	}
+	return 0
 }
 
-func (c *CPU) bmi() {
+func (c *CPU) bmi() byte {
 	if c.getFlag('N') == 1 {
 		c.branch()
 	}
+	return 0
 }
 
-func (c *CPU) beq() {
+func (c *CPU) beq() byte {
 	if c.getFlag('Z') == 1 {
 		c.branch()
 	}
+	return 0
 }
 
-func (c *CPU) bcs() {
+func (c *CPU) bcs() byte {
 	if c.getFlag('C') == 1 {
 		c.branch()
 	}
+	return 0
 }
 
-func (c *CPU) bcc() {
+func (c *CPU) bcc() byte {
 	if c.getFlag('C') == 0 {
 		c.branch()
 	}
+	return 0
 }
 
-func (c *CPU) sei() {
+func (c *CPU) sei() byte {
 	c.setFlag('I', true)
+	return 0
 }
 
-func (c *CPU) sed() {
+func (c *CPU) sed() byte {
 	c.setFlag('D', true)
+	return 0
 }
 
-func (c *CPU) sec() {
+func (c *CPU) sec() byte {
 	c.setFlag('C', true)
+	return 0
 }
 
-func (c *CPU) clv() {
+func (c *CPU) clv() byte {
 	c.setFlag('V', false)
+	return 0
 }
 
-func (c *CPU) cli() {
+func (c *CPU) cli() byte {
 	c.setFlag('I', false)
+	return 0
 }
 
-func (c *CPU) cld() {
+func (c *CPU) cld() byte {
 	c.setFlag('D', false)
+	return 0
 }
 
-func (c *CPU) clc() {
+func (c *CPU) clc() byte {
 	c.setFlag('C', false)
+	return 0
 }
 
-func (c *CPU) cpy() {
+func (c *CPU) cpy() byte {
 	c.fetch()
 	temp := c.Y - c.fetched
 	c.setFlag('C', c.Y >= c.fetched)
 	c.setFlag('Z', temp == 0)
 	c.setFlag('N', temp&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) cpx() {
+func (c *CPU) cpx() byte {
 	c.fetch()
 	temp := c.X - c.fetched
 	c.setFlag('C', c.X >= c.fetched)
 	c.setFlag('Z', temp == 0)
 	c.setFlag('N', temp&0x80 != 0)
+	return 0
 }
 
-func (c *CPU) cmp() {
+func (c *CPU) cmp() byte {
 	c.fetch()
 	temp := c.A - c.fetched
 	c.setFlag('C', c.A >= c.fetched)
 	c.setFlag('Z', temp == 0)
 	c.setFlag('N', temp&0x80 != 0)
+	return 1
 }
 
-func (c *CPU) rti() {
+func (c *CPU) rti() byte {
 	c.P = c.pop()
 	c.setFlag(B, false)
 	c.setFlag(U, false)
 
 	c.PC = uint16(c.pop())
 	c.PC |= uint16(c.pop()) << 8
+	return 0
 }
 
-func (c *CPU) rts() {
+func (c *CPU) rts() byte {
 	c.PC = uint16(c.pop())
 	c.PC |= uint16(c.pop()) << 8
 	c.PC++
+	return 0
 }
 
-func (c *CPU) jsr() {
+func (c *CPU) jsr() byte {
 	c.PC--
 	c.push(byte((c.PC >> 8) & 0x00FF))
 	c.push(byte(c.PC & 0x00FF))
 	c.PC = c.addrAbs
+	return 0
 }
 
-func (c *CPU) jmp() {
+func (c *CPU) jmp() byte {
 	c.PC = c.addrAbs
+	return 0
 }
 
-func (c *CPU) nop() {
+func (c *CPU) nop() byte {
 	// Do nothing
+	return 0
 }
 
-func (c *CPU) bit() {
+func (c *CPU) bit() byte {
 	c.fetch()
 	temp := c.A & c.fetched
 	c.setFlag('Z', temp == 0)
 	c.setFlag('N', c.fetched&(1<<7) != 0)
 	c.setFlag('V', c.fetched&(1<<6) != 0)
+	return 0
 }
 
-func (c *CPU) fetch() {
+func (c *CPU) fetch() byte {
 	if c.Lookup[c.opcode].AddrModeName != "imp" {
 		c.fetched = c.bus.Read(c.addrAbs)
 	}
+	return 0
+}
+
+func (c *CPU) branch() byte {
+	c.Cycles++
+	c.addrAbs = c.PC + c.addrRel
+
+	if (c.addrAbs & 0xFF00) != (c.PC & 0xFF00) {
+		c.Cycles++
+	}
+	c.PC = c.addrAbs
+	return 0
 }
 
 // Flags
