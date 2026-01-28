@@ -1,7 +1,6 @@
 package ppu
 
 import (
-	"fmt"
 	"github.com/meadori/vibemulator/cartridge" // Keep this import for Mirroring constants
 	"github.com/meadori/vibemulator/mapper"     // Import mapper package
 )
@@ -213,8 +212,6 @@ func (p *PPU) Clock() {
 			p.PPUSTATUS &^= 0x80
 			p.PPUSTATUS &^= 0x40 // Clear sprite 0 hit
 			p.PPUSTATUS &^= 0x20 // Clear sprite overflow
-			// Debug: Log PPUCTRL and PPUMASK
-			fmt.Printf("PPUCTRL: %02X, PPUMASK: %02X\n", p.PPUCTRL, p.PPUMASK)
 		}
 
 		if p.cycle == 0 { // Start of scanline
