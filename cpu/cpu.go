@@ -60,6 +60,7 @@ func (c *CPU) Reset() {
 	lo := uint16(c.bus.Read(c.addrAbs))
 	hi := uint16(c.bus.Read(c.addrAbs + 1))
 	c.PC = (hi << 8) | lo
+	fmt.Printf("CPU Reset: PC = %04X\n", c.PC)
 
 	c.A = 0
 	c.X = 0
@@ -100,8 +101,10 @@ func (c *CPU) LogState() string {
 // Clock performs one clock cycle.
 func (c *CPU) Clock() {
 	if c.Cycles == 0 {
+		opcodeAddr := c.PC // Store PC before incrementing
 		c.opcode = c.bus.Read(c.PC)
 		c.PC++
+		fmt.Printf("CPU Clock: PC = %04X, Opcode = %02X\n", opcodeAddr, c.opcode)
 
 		instr := c.Lookup[c.opcode]
 		c.Cycles = instr.Cycles

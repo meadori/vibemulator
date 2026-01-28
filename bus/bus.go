@@ -1,6 +1,7 @@
 package bus
 
 import (
+	"fmt"
 	"github.com/meadori/vibemulator/cartridge"
 	"github.com/meadori/vibemulator/cpu"
 	"github.com/meadori/vibemulator/mapper" // Import mapper package
@@ -111,6 +112,7 @@ func (b *Bus) Write(addr uint16, data byte) {
 	if addr >= 0x0000 && addr < 0x2000 { // 2KB internal RAM, mirrored
 		b.ram[addr&0x07FF] = data
 	} else if addr >= 0x2000 && addr < 0x4000 { // PPU registers, mirrored
+		fmt.Printf("CPU Write to PPU Register: Addr = %04X, Data = %02X\n", addr, data)
 		b.ppu.Write(addr&0x0007, data)
 	} else if addr >= 0x4000 && addr < 0x4020 { // APU and I/O registers
 		if addr == 0x4014 { // OAMDMA
