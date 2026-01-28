@@ -17,3 +17,4 @@ vibemulator
 # Nestest outputs and test ROMs
 nestest/testdata/nestest.nes
 my_nestest.logdiff.log
+my_nestest.log
