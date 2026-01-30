@@ -557,9 +557,12 @@ func (c *CPU) sax() byte {
 }
 
 func (c *CPU) plp() byte {
-	c.P = c.pop()
-	c.setFlag(B, false) // Explicitly clear B flag (bit 4)
-	c.setFlag(U, true)  // Explicitly set U flag (bit 5)
+	popped := c.pop() // Value popped from stack
+	// Load bits 7,6,3,2,1,0 directly from popped value.
+	// Forcibly clear bit 4 (B), Forcibly set bit 5 (U).
+	// Note: In 6502, bit 5 is always read as 1.
+	// The B flag (bit 4) is reset to 0 after PLP.
+	c.P = (popped & ^(B | U)) | U // Clear B from popped, then set U.
 	return 0
 }
 
@@ -1031,10 +1034,11 @@ func (c *CPU) cmp() byte {
 }
 
 func (c *CPU) rti() byte {
-	c.P = c.pop()
-	c.setFlag(B, false)
-	c.setFlag(U, false)
-
+	popped := c.pop()
+	// RTI loads all flags from stack, but forces U (bit 5) to 1.
+	// B flag (bit 4) is loaded from stack.
+	// This means we take all bits from 'popped' except U, and then force U to 1.
+	c.P = (popped & ^U) | U
 	c.PC = uint16(c.pop())
 	c.PC |= uint16(c.pop()) << 8
 	return 0
