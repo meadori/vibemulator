@@ -46,6 +46,15 @@ type PPU struct {
 	bgNextTileAttrib   byte
 	bgNextTileLSB      byte
 	bgNextTileMSB      byte
+
+	// Sprite rendering
+	spriteScanline []spriteInfo
+	spriteZeroHit  bool
+	spriteZero     bool
+}
+
+type spriteInfo struct {
+	y, id, attr, x byte
 }
 
 // New creates a new PPU instance.
@@ -54,6 +63,10 @@ func New() *PPU {
 		frame: image.NewRGBA(image.Rect(0, 0, 256, 240)),
 	}
 	p.SystemPalette = getSystemPalette()
+	for i := range p.palette {
+		p.palette[i] = byte(i)
+	}
+	p.spriteScanline = make([]spriteInfo, 8)
 	return p
 }
 
@@ -77,6 +90,7 @@ func (p *PPU) Clock() {
 
 		if p.Scanline == -1 && p.Cycle == 1 {
 			p.Status &= 0x1F
+			p.spriteZeroHit = false
 		}
 
 		if (p.Cycle >= 2 && p.Cycle < 258) || (p.Cycle >= 322 && p.Cycle < 338) {
@@ -91,7 +105,7 @@ func (p *PPU) Clock() {
 				if (p.vramAddr & 0x0040) != 0 {
 					p.bgNextTileAttrib >>= 4
 				}
-				if (p.vramAddr & 0x0004) != 0 {
+				if (p.vramAddr & 0x0002) != 0 {
 					p.bgNextTileAttrib >>= 2
 				}
 				p.bgNextTileAttrib &= 0x03
@@ -111,6 +125,11 @@ func (p *PPU) Clock() {
 		if p.Cycle == 257 {
 			p.loadBGShifters()
 			p.transferAddressX()
+		}
+
+		// Sprite evaluation
+		if p.Cycle == 257 && p.Scanline >= 0 {
+			p.evaluateSprites()
 		}
 
 		if p.Cycle > 257 && p.Cycle < 321 && p.Scanline == -1 {
@@ -209,13 +228,7 @@ func (p *PPU) getMirrorAddress(addr uint16) uint16 {
 		return addr & 0x07FF
 	}
 	if mirror == cartridge.MirrorHorizontal {
-		if addr >= 0x0400 && addr <= 0x07FF {
-			return addr - 0x0400
-		}
-		if addr >= 0x0C00 && addr <= 0x0FFF {
-			return addr - 0x0400
-		}
-		return addr
+		return (addr & 0x03FF) | ((addr >> 1) & 0x0400)
 	}
 	return addr
 }
@@ -228,6 +241,9 @@ func (p *PPU) CPURead(addr uint16) byte {
 	case 0x0001: // Mask
 	case 0x0002: // Status
 		data = (p.Status & 0xE0) | (p.ppuData & 0x1F)
+		if p.spriteZeroHit {
+			data |= 0x40
+		}
 		p.Status &= 0x7F // Clear VBlank flag
 		p.addrLatch = 0
 	case 0x0003: // OAM Address
@@ -369,11 +385,31 @@ func (p *PPU) transferAddressY() {
 }
 
 // Rendering
+func (p *PPU) evaluateSprites() {
+	p.spriteScanline = p.spriteScanline[:0]
+	var count byte = 0
+	for i := 0; i < 64; i++ {
+		y := p.oam[i*4]
+		if p.Scanline >= int(y) && p.Scanline < int(y)+8 {
+			if count < 8 {
+				p.spriteScanline = append(p.spriteScanline, spriteInfo{
+					y:    y,
+					id:   p.oam[i*4+1],
+					attr: p.oam[i*4+2],
+					x:    p.oam[i*4+3],
+				})
+			}
+			count++
+		}
+	}
+	if count > 8 {
+		p.Status |= 0x20
+	}
+}
+
 func (p *PPU) renderPixel() {
 	var bgPixel byte
 	var bgPalette byte
-	var colorIndex byte
-
 	if (p.Mask & 0x08) != 0 {
 		mux := 0x8000 >> p.fineX
 		p1 := (p.bgPatternShifterLo & uint16(mux)) > 0
@@ -385,15 +421,71 @@ func (p *PPU) renderPixel() {
 		bgPalette = (boolToByte(a2) << 1) | boolToByte(a1)
 	}
 
-	if bgPixel == 0 {
-		colorIndex = p.PPURead(0x3F00)
-	} else {
-		colorIndex = p.PPURead(0x3F00 + uint16(bgPalette)*4 + uint16(bgPixel))
+	var spPixel byte
+	var spPalette byte
+	var spPriority bool
+	if (p.Mask & 0x10) != 0 {
+		p.spriteZero = false
+		for i := 0; i < len(p.spriteScanline); i++ {
+			if p.Cycle-1 >= int(p.spriteScanline[i].x) && p.Cycle-1 < int(p.spriteScanline[i].x)+8 {
+				if i == 0 {
+					p.spriteZero = true
+				}
+				spritePatternAddrLo := uint16(p.Ctrl&0x08)*0x1000 + uint16(p.spriteScanline[i].id)*16 + (uint16(p.Scanline) - uint16(p.spriteScanline[i].y))
+				if p.spriteScanline[i].attr&0x80 != 0 {
+					spritePatternAddrLo = uint16(p.Ctrl&0x08)*0x1000 + uint16(p.spriteScanline[i].id)*16 + (7 - (uint16(p.Scanline) - uint16(p.spriteScanline[i].y)))
+				}
+				spritePatternAddrHi := spritePatternAddrLo + 8
+
+				var spritePatternBitLo byte
+				var spritePatternBitHi byte
+				if p.spriteScanline[i].attr&0x40 != 0 { // horizontal flip
+					shift := byte(p.Cycle - 1 - int(p.spriteScanline[i].x))
+					spritePatternBitLo = (p.PPURead(spritePatternAddrLo) >> shift) & 0x01
+					spritePatternBitHi = (p.PPURead(spritePatternAddrHi) >> shift) & 0x01
+				} else {
+					shift := byte(7 - (p.Cycle - 1 - int(p.spriteScanline[i].x)))
+					spritePatternBitLo = (p.PPURead(spritePatternAddrLo) >> shift) & 0x01
+					spritePatternBitHi = (p.PPURead(spritePatternAddrHi) >> shift) & 0x01
+				}
+
+				spPixel = (spritePatternBitHi << 1) | spritePatternBitLo
+				spPalette = (p.spriteScanline[i].attr & 0x03) + 0x04
+				spPriority = (p.spriteScanline[i].attr & 0x20) == 0
+
+				if spPixel != 0 {
+					break
+				}
+			}
+		}
 	}
 
-	if colorIndex > 0x3F {
-		colorIndex &= 0x3F
+	var finalPixel byte
+	var finalPalette byte
+
+	if bgPixel != 0 && spPixel != 0 {
+		if spPriority {
+			finalPixel = spPixel
+			finalPalette = spPalette
+		} else {
+			finalPixel = bgPixel
+			finalPalette = bgPalette
+		}
+		if p.spriteZero && p.spriteZeroHit == false && p.Cycle < 255 {
+			p.spriteZeroHit = true
+		}
+	} else if bgPixel == 0 && spPixel != 0 {
+		finalPixel = spPixel
+		finalPalette = spPalette
+	} else if bgPixel != 0 && spPixel == 0 {
+		finalPixel = bgPixel
+		finalPalette = bgPalette
+	} else {
+		finalPixel = 0
+		finalPalette = 0
 	}
+
+	colorIndex := p.PPURead(0x3F00 + uint16(finalPalette)*4 + uint16(finalPixel))
 	p.frame.Set(p.Cycle-1, p.Scanline, p.SystemPalette[colorIndex])
 }
 
