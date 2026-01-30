@@ -316,6 +316,7 @@ func (p *PPU) CPUWrite(addr uint16, data byte) {
 		p.oamAddr = data
 	case 0x0004: // OAM Data
 		p.oam[p.oamAddr] = data
+		p.oamAddr++
 	case 0x0005: // Scroll
 		if p.addrLatch == 0 {
 			p.fineX = data & 0x07
