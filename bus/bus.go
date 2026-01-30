@@ -92,7 +92,12 @@ func (b *Bus) Write(addr uint16, data byte) {
 		b.PPU.CPUWrite(addr&0x0007, data)
 	case addr == 0x4014:
 		// OAMDMA
-		b.PPU.DoOAMDMA(data)
+		oamData := [256]byte{}
+		dmaAddr := uint16(data) << 8
+		for i := 0; i < 256; i++ {
+			oamData[i] = b.Read(dmaAddr + uint16(i))
+		}
+		b.PPU.DoOAMDMA(oamData)
 	case addr >= 0x4000 && addr <= 0x4017:
 		// APU and I/O registers
 	}

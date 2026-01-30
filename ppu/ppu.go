@@ -308,11 +308,10 @@ func (p *PPU) CPUWrite(addr uint16, data byte) {
 }
 
 // DoOAMDMA performs OAM DMA transfer.
-func (p *PPU) DoOAMDMA(data byte) {
-	// This should be handled by the bus, which will read 256 bytes from CPU memory
-	// and write them to the PPU's OAM.
-	// For now, we will just log this event.
-	LogDebug("OAM DMA initiated with page %02X", data)
+func (p *PPU) DoOAMDMA(data [256]byte) {
+	for i := 0; i < 256; i++ {
+		p.oam[i] = data[i]
+	}
 }
 
 func (p *PPU) loadBGShifters() {
@@ -431,9 +430,9 @@ func (p *PPU) renderPixel() {
 				if i == 0 {
 					p.spriteZero = true
 				}
-				spritePatternAddrLo := uint16(p.Ctrl&0x08)*0x1000 + uint16(p.spriteScanline[i].id)*16 + (uint16(p.Scanline) - uint16(p.spriteScanline[i].y))
+				spritePatternAddrLo := uint16(p.Ctrl&0x20)*0x1000 + uint16(p.spriteScanline[i].id)*16 + (uint16(p.Scanline) - uint16(p.spriteScanline[i].y))
 				if p.spriteScanline[i].attr&0x80 != 0 {
-					spritePatternAddrLo = uint16(p.Ctrl&0x08)*0x1000 + uint16(p.spriteScanline[i].id)*16 + (7 - (uint16(p.Scanline) - uint16(p.spriteScanline[i].y)))
+					spritePatternAddrLo = uint16(p.Ctrl&0x20)*0x1000 + uint16(p.spriteScanline[i].id)*16 + (7 - (uint16(p.Scanline) - uint16(p.spriteScanline[i].y)))
 				}
 				spritePatternAddrHi := spritePatternAddrLo + 8
 
