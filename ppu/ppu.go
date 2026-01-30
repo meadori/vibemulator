@@ -348,7 +348,7 @@ func (p *PPU) CPUWrite(addr uint16, data byte) {
 // DoOAMDMA performs OAM DMA transfer.
 func (p *PPU) DoOAMDMA(data [256]byte) {
 	for i := 0; i < 256; i++ {
-		p.oam[i] = data[i]
+		p.oam[byte((uint16(p.oamAddr) + uint16(i)) % 256)] = data[i]
 	}
 }
 
