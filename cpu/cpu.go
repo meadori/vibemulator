@@ -1059,6 +1059,23 @@ func (c *CPU) jsr() byte {
 	return 0
 }
 
+func (c *CPU) brk() byte {
+	c.PC++ // BRK is a one-byte instruction, so push PC+1
+	c.push(byte((c.PC >> 8) & 0x00FF))
+	c.push(byte(c.PC & 0x00FF))
+
+	// Push P with B and U flags set
+	c.push(c.P | B | U)
+
+	c.setFlag('I', true) // Set Interrupt Disable flag
+
+	c.addrAbs = 0xFFFE // IRQ vector
+	lo := uint16(c.bus.Read(c.addrAbs))
+	hi := uint16(c.bus.Read(c.addrAbs + 1))
+	c.PC = (hi << 8) | lo
+	return 0
+}
+
 func (c *CPU) jmp() byte {
 	c.PC = c.addrAbs
 	return 0
