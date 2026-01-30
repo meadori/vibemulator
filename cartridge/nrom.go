@@ -1,6 +1,4 @@
-package mapper
-
-import "github.com/meadori/vibemulator/cartridge"
+package cartridge
 
 // NROM (Mapper 0) is the simplest mapper.
 type nrom struct {
@@ -11,7 +9,7 @@ type nrom struct {
 	chrBanks int // 1 or 2 (8KB or 16KB), or 0 if CHR-RAM was allocated.
 }
 
-func newNROM(cart *cartridge.Cartridge) *nrom {
+func newNROM(cart *Cartridge) *nrom {
 	prgBanks := len(cart.PRGROM) / 16384 // 16KB banks
 	chrBanks := len(cart.CHRROM) / 8192  // 8KB banks (note: if CHR-RAM, len(CHRROM) will be 8192 and chrBanks 1)
 

@@ -1,9 +1,13 @@
 package cartridge
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 )
+
+// Declare logDebug function from main package
+var LogDebug func(format string, a ...interface{})
 
 // Mirroring types
 const (
@@ -14,11 +18,20 @@ const (
 	MirrorFourScreen     byte = 4
 )
 
+// Mapper defines the interface for different NES mappers.
+type Mapper interface {
+	CPUMapRead(addr uint16) (byte, bool)
+	CPUMapWrite(addr uint16, data byte) bool
+	PPUMapRead(addr uint16) (byte, bool)
+	PPUMapWrite(addr uint16, data byte) bool
+	GetMirroring() byte
+}
+
 // Cartridge represents an NES cartridge.
 type Cartridge struct {
 	PRGROM []byte
 	CHRROM []byte
-	Mapper byte
+	Mapper Mapper
 	Mirror byte
 }
 
@@ -47,8 +60,24 @@ func New(path string) (*Cartridge, error) {
 		// Allocate CHR RAM if no CHR ROM is present
 		c.CHRROM = make([]byte, 8192) // Common size for CHR RAM
 	}
-	c.Mapper = (data[6] >> 4) | (data[7] & 0xF0)
+	mapperID := (data[6] >> 4) | (data[7] & 0xF0)
 	c.Mirror = (data[6] & 1) | ((data[6] >> 3) & 2)
 
+	mapper, err := NewMapper(c, mapperID)
+	if err != nil {
+		return nil, err
+	}
+	c.Mapper = mapper
+
 	return c, nil
+}
+
+// NewMapper creates a Mapper instance based on the cartridge's mapper ID.
+func NewMapper(cart *Cartridge, mapperID byte) (Mapper, error) {
+	switch mapperID {
+	case 0:
+		return newNROM(cart), nil
+	default:
+		return nil, fmt.Errorf("unsupported mapper: %d", mapperID)
+	}
 }

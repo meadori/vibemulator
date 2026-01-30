@@ -4,6 +4,9 @@ import (
 	"fmt"
 )
 
+// Declare logDebug function from main package
+var LogDebug func(format string, a ...interface{})
+
 // Bus defines the interface for the CPU to interact with the bus.
 type Bus interface {
 	Read(addr uint16) byte
@@ -60,7 +63,7 @@ func (c *CPU) Reset() {
 	lo := uint16(c.bus.Read(c.addrAbs))
 	hi := uint16(c.bus.Read(c.addrAbs + 1))
 	c.PC = (hi << 8) | lo
-	fmt.Printf("CPU Reset: PC = %04X\n", c.PC)
+	LogDebug("CPU Reset: PC = %04X", c.PC)
 
 	c.A = 0
 	c.X = 0
@@ -100,11 +103,11 @@ func (c *CPU) LogState() string {
 
 // Clock performs one clock cycle.
 func (c *CPU) Clock() {
+	LogDebug("CPU Clock")
 	if c.Cycles == 0 {
-		opcodeAddr := c.PC // Store PC before incrementing
 		c.opcode = c.bus.Read(c.PC)
 		c.PC++
-		fmt.Printf("CPU Clock: PC = %04X, Opcode = %02X\n", opcodeAddr, c.opcode)
+		LogDebug("CPU Clock: PC = %04X, Opcode = %02X", c.PC, c.opcode)
 
 		instr := c.Lookup[c.opcode]
 		c.Cycles = instr.Cycles
@@ -699,291 +702,61 @@ func (c *CPU) inx() byte {
 }
 
 func (c *CPU) inc() byte {
-
 	c.fetch()
-
 	temp := c.fetched + 1
-
 	c.bus.Write(c.addrAbs, temp)
-
 	c.setFlag('Z', temp == 0)
-
 	c.setFlag('N', temp&0x80 != 0)
-
 	return 0
-
 }
-
-
 
 func (c *CPU) dcp() byte {
-
-
-
 	c.fetch()
-
-
-
 	// DEC operation
-
-
-
 	temp := c.fetched - 1
-
-
-
 	c.bus.Write(c.addrAbs, temp)
-
-
-
-
-
-
 
 	// CMP operation
-
-
-
 	res := c.A - temp
-
-
-
 	c.setFlag('C', c.A >= temp)
-
-
-
 	c.setFlag('Z', res == 0)
-
-
-
 	c.setFlag('N', res&0x80 != 0)
-
-
-
 	return 0
-
-
-
 }
-
-
-
-
-
-
 
 func (c *CPU) isc() byte {
-
-
-
 	c.fetch()
-
-
-
 	// INC operation
-
-
-
 	temp := c.fetched + 1
-
-
-
 	c.bus.Write(c.addrAbs, temp)
 
-
-
-
-
-
-
 	// SBC operation (similar to regular SBC, but with the incremented value)
-
-
-
-	// For SBC, effective_value = fetched_value (temp in this case)
-
-
-
-	// A - effective_value - (1 - C)
-
-
-
-	// temp := uint16(c.A) - uint16(c.fetched) - (1 - uint16(c.getFlag('C')))  // original sbc
-
-
-
 	sbcVal := uint16(temp)
-
-
-
 	res := uint16(c.A) - sbcVal - (1 - uint16(c.getFlag('C')))
 
-
-
-
-
-
-
 	c.setFlag('C', res < 0x100) // If borrow, C is clear
-
-
-
 	c.setFlag('Z', (res&0x00FF) == 0)
-
-
-
-	// Overflow logic for SBC: (A^res) & (fetched^res) & 0x80
-
-
-
-	// For ISC, fetched is the incremented value (temp)
-
-
-
 	c.setFlag('V', ((uint16(c.A) ^ res) & (sbcVal ^ res)) & 0x0080 != 0)
-
-
-
 	c.setFlag('N', res&0x0080 != 0)
-
-
-
 	c.A = byte(res & 0x00FF)
-
-
-
 	return 0
-
-
-
 }
-
-
-
-
-
-
 
 func (c *CPU) eor() byte {
-
-
-
-
-
-
-
 	c.fetch()
-
-
-
-
-
-
-
 	c.A = c.A ^ c.fetched
-
-
-
-
-
-
-
 	c.setFlag('Z', c.A == 0)
-
-
-
-
-
-
-
 	c.setFlag('N', c.A&0x80 != 0)
-
-
-
-
-
-
-
 	return 0
-
-
-
-
-
-
-
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 func (c *CPU) anc() byte {
-
-
-
-
-
-
-
 	c.fetch()
-
-
-
-
-
-
-
 	c.A = c.A & c.fetched
-
-
-
-
-
-
-
 	c.setFlag('Z', c.A == 0)
-
-
-
-
-
-
-
 	c.setFlag('N', c.A&0x80 != 0)
-
-
-
-
-
-
-
 	c.setFlag('C', c.getFlag('N') == 1) // Set Carry flag to the value of the Negative flag
-
-
-
-
-
-
-
 	return 0
-
-
-
-
-
-
-
 }
 
 func (c *CPU) and() byte {
@@ -1045,9 +818,6 @@ func (c *CPU) arr() byte {
 	c.setFlag('N', c.A&0x80 != 0)
 
 	// ARR specific V flag update
-	// V flag is set if bit 6 and bit 5 are different after the ROR.
-	// (c.A>>6)&1 checks bit 6, (c.A>>5)&1 checks bit 5
-	// XORing them checks if they are different.
 	c.setFlag('V', ((c.A>>6)&1)^((c.A>>5)&1) != 0)
 
 	return 0
@@ -1125,7 +895,6 @@ func (c *CPU) rra() byte {
 	c.bus.Write(c.addrAbs, val) // Write back rotated value
 
 	// ADC operation (similar to regular ADC, but with the rotated value)
-	// For ADC, effective_value = val
 	adcVal := uint16(val)
 	res := uint16(c.A) + adcVal + uint16(c.getFlag('C'))
 

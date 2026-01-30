@@ -1,94 +1,400 @@
 package ppu
 
 import (
-	"github.com/meadori/vibemulator/cartridge" // Keep this import for Mirroring constants
-	"github.com/meadori/vibemulator/mapper"     // Import mapper package
+	"image"
+	"image/color"
+
+	"github.com/meadori/vibemulator/cartridge"
 )
+
+// Declare logDebug function from main package
+var LogDebug func(format string, a ...interface{})
 
 // PPU represents the Picture Processing Unit.
 type PPU struct {
-	cart *cartridge.Cartridge // Keep for general info for now, might be removed later
-	mapper mapper.Mapper     // New mapper field
-	vram [2048]byte
-	oam  [256]byte
-	palette [32]byte
+	cart         *cartridge.Cartridge
+	vram         [2048]byte
+	oam          [256]byte
+	palette      [32]byte
+	Scanline     int
+	Cycle        int
+	Status       byte
+	Mask         byte
+	Ctrl         byte
+	vramAddr     uint16
+	vramTmpAddr  uint16
+	fineX        byte
+	fineY        byte
+	addrLatch    byte
+	ppuData      byte
+	oamAddr      byte
+	FrameCounter int
+	NMI          bool
 
-	// PPU Control Register
-	PPUCTRL byte
-	// PPU Mask Register
-	PPUMASK byte
-	// PPU Status Register
-	PPUSTATUS byte
-	// OAM Address Register
-	OAMADDR byte
-	// OAM Data Register
-	OAMDATA byte
-	// PPU Scroll Register
-	PPUSCROLL byte
-	// PPU Address Register
-	PPUADDR byte
-	// PPU Data Register
-	PPUDATA byte
-	// OAM DMA Register
-	OAMDMA byte
+	// Frame buffer
+	frame *image.RGBA
 
-	NMI bool
+	// System Palette
+	SystemPalette [0x40]color.RGBA
 
-	vramAddr uint16
-	vramTmpAddr uint16
-	dataBuffer byte
-	addrLatch bool
-	fineX byte
-
-	scanline int
-	cycle int
-
-	bgNextTileID     byte
-	bgNextTileAttrib byte
-	bgNextTileLSB    byte
-	bgNextTileMSB    byte
-	bgShifterPatternL uint16
-	bgShifterPatternH uint16
-	bgShifterAttribL  uint16
-	bgShifterAttribH  uint16
-
-	pixels [256 * 240]byte
-
-	scanlineSprites []sprite
-	spriteCount     int
-
-	spriteAttribute [8]byte // Attributes for sprites on current scanline
-	spriteX         [8]byte // X positions for sprites on current scanline
-
-	// Temporary storage for individual sprite pixel data
-	spritePixels [8]struct {
-		colorIndex byte
-		priority   byte
-	}
-}
-
-type sprite struct {
-	y     byte
-	tile  byte
-	attrs byte
-	x     byte
+	// Shifters
+	bgPatternShifterLo uint16
+	bgPatternShifterHi uint16
+	bgAttribShifterLo  uint16
+	bgAttribShifterHi  uint16
+	bgNextTileID       byte
+	bgNextTileAttrib   byte
+	bgNextTileLSB      byte
+	bgNextTileMSB      byte
 }
 
 // New creates a new PPU instance.
 func New() *PPU {
-	return &PPU{
-		scanlineSprites: make([]sprite, 0, 8),
+	p := &PPU{
+		frame: image.NewRGBA(image.Rect(0, 0, 256, 240)),
 	}
+	p.SystemPalette = getSystemPalette()
+	return p
 }
 
-// ConnectCartridge connects a cartridge to the PPU. (Minimal use now, mainly for mapper)
+// GetFrame returns the current frame.
+func (p *PPU) GetFrame() *image.RGBA {
+	return p.frame
+}
+
+// ConnectCartridge connects the cartridge to the PPU.
 func (p *PPU) ConnectCartridge(cart *cartridge.Cartridge) {
 	p.cart = cart
 }
 
-// ConnectMapper connects the PPU to the mapper for CHR access and mirroring.
-func (p *PPU) ConnectMapper(m mapper.Mapper) {
-	p.mapper = m
+// Clock performs one PPU clock cycle.
+func (p *PPU) Clock() {
+	if p.Scanline >= -1 && p.Scanline < 240 {
+		if p.Scanline == 0 && p.Cycle == 0 {
+			// Odd frame cycle skip
+			p.Cycle = 1
+		}
+
+		if p.Scanline == -1 && p.Cycle == 1 {
+			p.Status &= 0x1F
+		}
+
+		if (p.Cycle >= 2 && p.Cycle < 258) || (p.Cycle >= 322 && p.Cycle < 338) {
+			p.updateShifters()
+
+			switch (p.Cycle - 1) % 8 {
+			case 0:
+				p.loadBGShifters()
+				p.bgNextTileID = p.PPURead(0x2000 | (p.vramAddr & 0x0FFF))
+			case 2:
+				p.bgNextTileAttrib = p.PPURead(0x23C0 | (p.vramAddr & 0x0C00) | ((p.vramAddr >> 4) & 0x38) | ((p.vramAddr >> 2) & 0x07))
+				if (p.vramAddr & 0x0040) != 0 {
+					p.bgNextTileAttrib >>= 4
+				}
+				if (p.vramAddr & 0x0004) != 0 {
+					p.bgNextTileAttrib >>= 2
+				}
+				p.bgNextTileAttrib &= 0x03
+			case 4:
+				p.bgNextTileLSB = p.PPURead(uint16(p.Ctrl&0x10)*0x1000 + uint16(p.bgNextTileID)*16 + uint16(p.fineY))
+			case 6:
+				p.bgNextTileMSB = p.PPURead(uint16(p.Ctrl&0x10)*0x1000 + uint16(p.bgNextTileID)*16 + uint16(p.fineY) + 8)
+			case 7:
+				p.incrementScrollX()
+			}
+		}
+
+		if p.Cycle == 256 {
+			p.incrementScrollY()
+		}
+
+		if p.Cycle == 257 {
+			p.loadBGShifters()
+			p.transferAddressX()
+		}
+
+		if p.Cycle > 257 && p.Cycle < 321 && p.Scanline == -1 {
+			p.oamAddr = 0
+		}
+
+		if p.Scanline == -1 && p.Cycle >= 280 && p.Cycle < 305 {
+			p.transferAddressY()
+		}
+	}
+
+	if p.Scanline == 241 && p.Cycle == 1 {
+		p.Status |= 0x80
+		if (p.Ctrl & 0x80) != 0 {
+			p.NMI = true
+		}
+	}
+
+	if p.Scanline < 240 && p.Cycle < 256 {
+		p.renderPixel()
+	}
+
+	p.Cycle++
+	if p.Cycle > 340 {
+		p.Cycle = 0
+		p.Scanline++
+		if p.Scanline > 260 {
+			p.Scanline = -1
+			p.FrameCounter++
+		}
+	}
+}
+
+// PPURead reads from PPU memory.
+func (p *PPU) PPURead(addr uint16) byte {
+	var data byte
+	addr &= 0x3FFF
+
+	switch {
+	case addr <= 0x1FFF:
+		data, _ = p.cart.Mapper.PPUMapRead(addr)
+	case addr >= 0x2000 && addr <= 0x3EFF:
+		addr &= 0x0FFF
+		data = p.vram[p.getMirrorAddress(addr)]
+	case addr >= 0x3F00 && addr <= 0x3FFF:
+		addr &= 0x001F
+		if addr == 0x0010 {
+			addr = 0x0000
+		}
+		if addr == 0x0014 {
+			addr = 0x0004
+		}
+		if addr == 0x0018 {
+			addr = 0x0008
+		}
+		if addr == 0x001C {
+			addr = 0x000C
+		}
+		data = p.palette[addr]
+	}
+
+	return data
+}
+
+// PPUWrite writes to PPU memory.
+func (p *PPU) PPUWrite(addr uint16, data byte) {
+	addr &= 0x3FFF
+
+	switch {
+	case addr <= 0x1FFF:
+		p.cart.Mapper.PPUMapWrite(addr, data)
+	case addr >= 0x2000 && addr <= 0x3EFF:
+		addr &= 0x0FFF
+		p.vram[p.getMirrorAddress(addr)] = data
+	case addr >= 0x3F00 && addr <= 0x3FFF:
+		addr &= 0x001F
+		if addr == 0x0010 {
+			addr = 0x0000
+		}
+		if addr == 0x0014 {
+			addr = 0x0004
+		}
+		if addr == 0x0018 {
+			addr = 0x0008
+		}
+		if addr == 0x001C {
+			addr = 0x000C
+		}
+		p.palette[addr] = data
+	}
+}
+
+func (p *PPU) getMirrorAddress(addr uint16) uint16 {
+	mirror := p.cart.Mapper.GetMirroring()
+	if mirror == cartridge.MirrorVertical {
+		return addr & 0x07FF
+	}
+	if mirror == cartridge.MirrorHorizontal {
+		if addr >= 0x0400 && addr <= 0x07FF {
+			return addr - 0x0400
+		}
+		if addr >= 0x0C00 && addr <= 0x0FFF {
+			return addr - 0x0400
+		}
+		return addr
+	}
+	return addr
+}
+
+// CPURead reads from PPU registers.
+func (p *PPU) CPURead(addr uint16) byte {
+	var data byte
+	switch addr {
+	case 0x0000: // Control
+	case 0x0001: // Mask
+	case 0x0002: // Status
+		data = (p.Status & 0xE0) | (p.ppuData & 0x1F)
+		p.Status &= 0x7F // Clear VBlank flag
+		p.addrLatch = 0
+	case 0x0003: // OAM Address
+	case 0x0004: // OAM Data
+		data = p.oam[p.oamAddr]
+	case 0x0005: // Scroll
+	case 0x0006: // PPU Address
+	case 0x0007: // PPU Data
+		data = p.ppuData
+		p.ppuData = p.PPURead(p.vramAddr)
+		if p.vramAddr >= 0x3F00 {
+			data = p.PPURead(p.vramAddr)
+		}
+		if (p.Ctrl & 0x04) != 0 {
+			p.vramAddr += 32
+		} else {
+			p.vramAddr++
+		}
+	}
+	return data
+}
+
+// CPUWrite writes to PPU registers.
+func (p *PPU) CPUWrite(addr uint16, data byte) {
+	switch addr {
+	case 0x0000: // Control
+		p.Ctrl = data
+		p.vramTmpAddr = (p.vramTmpAddr & 0xF3FF) | ((uint16(data) & 0x03) << 10)
+	case 0x0001: // Mask
+		p.Mask = data
+	case 0x0002: // Status
+	case 0x0003: // OAM Address
+		p.oamAddr = data
+	case 0x0004: // OAM Data
+		p.oam[p.oamAddr] = data
+	case 0x0005: // Scroll
+		if p.addrLatch == 0 {
+			p.fineX = data & 0x07
+			p.vramTmpAddr = (p.vramTmpAddr & 0xFFE0) | (uint16(data) >> 3)
+			p.addrLatch = 1
+		} else {
+			p.vramTmpAddr = (p.vramTmpAddr & 0x8C1F) | ((uint16(data) & 0x07) << 12) | ((uint16(data) & 0xF8) << 2)
+			p.addrLatch = 0
+		}
+	case 0x0006: // PPU Address
+		if p.addrLatch == 0 {
+			p.vramTmpAddr = (p.vramTmpAddr & 0x00FF) | (uint16(data) << 8)
+			p.addrLatch = 1
+		} else {
+			p.vramTmpAddr = (p.vramTmpAddr & 0xFF00) | uint16(data)
+			p.vramAddr = p.vramTmpAddr
+			p.addrLatch = 0
+		}
+	case 0x0007: // PPU Data
+		p.PPUWrite(p.vramAddr, data)
+		if (p.Ctrl & 0x04) != 0 {
+			p.vramAddr += 32
+		} else {
+			p.vramAddr++
+		}
+	}
+}
+
+// DoOAMDMA performs OAM DMA transfer.
+func (p *PPU) DoOAMDMA(data byte) {
+	// This should be handled by the bus, which will read 256 bytes from CPU memory
+	// and write them to the PPU's OAM.
+	// For now, we will just log this event.
+	LogDebug("OAM DMA initiated with page %02X", data)
+}
+
+func (p *PPU) loadBGShifters() {
+	p.bgPatternShifterLo = (p.bgPatternShifterLo & 0xFF00) | uint16(p.bgNextTileLSB)
+	p.bgPatternShifterHi = (p.bgPatternShifterHi & 0xFF00) | uint16(p.bgNextTileMSB)
+	if (p.bgNextTileAttrib & 0x01) != 0 {
+		p.bgAttribShifterLo = (p.bgAttribShifterLo & 0xFF00) | 0xFF
+	} else {
+		p.bgAttribShifterLo = (p.bgAttribShifterLo & 0xFF00) | 0x00
+	}
+	if (p.bgNextTileAttrib & 0x02) != 0 {
+		p.bgAttribShifterHi = (p.bgAttribShifterHi & 0xFF00) | 0xFF
+	} else {
+		p.bgAttribShifterHi = (p.bgAttribShifterHi & 0xFF00) | 0x00
+	}
+}
+
+func (p *PPU) updateShifters() {
+	if (p.Mask & 0x08) != 0 {
+		p.bgPatternShifterLo <<= 1
+		p.bgPatternShifterHi <<= 1
+		p.bgAttribShifterLo <<= 1
+		p.bgAttribShifterHi <<= 1
+	}
+}
+
+// Scrolling
+func (p *PPU) incrementScrollX() {
+	if (p.Mask & 0x08) != 0 {
+		if (p.vramAddr & 0x001F) == 31 {
+			p.vramAddr &= 0xFFE0
+			p.vramAddr ^= 0x0400
+		} else {
+			p.vramAddr++
+		}
+	}
+}
+
+func (p *PPU) incrementScrollY() {
+	if (p.Mask & 0x08) != 0 {
+		if p.fineY < 7 {
+			p.fineY++
+		} else {
+			p.fineY = 0
+			y := (p.vramAddr & 0x03E0) >> 5
+			if y == 29 {
+				y = 0
+				p.vramAddr ^= 0x0800
+			} else if y == 31 {
+				y = 0
+			} else {
+				y++
+			}
+			p.vramAddr = (p.vramAddr & 0xFC1F) | (y << 5)
+		}
+	}
+}
+
+func (p *PPU) transferAddressX() {
+	if (p.Mask & 0x08) != 0 {
+		p.vramAddr = (p.vramAddr & 0xFBE0) | (p.vramTmpAddr & 0x041F)
+	}
+}
+
+func (p *PPU) transferAddressY() {
+	if (p.Mask & 0x08) != 0 {
+		p.vramAddr = (p.vramAddr & 0x841F) | (p.vramTmpAddr & 0x7BE0)
+		p.fineY = byte((p.vramTmpAddr >> 12) & 0x07)
+	}
+}
+
+// Rendering
+func (p *PPU) renderPixel() {
+	var bgPixel byte
+	var bgPalette byte
+	var colorIndex byte
+
+	if (p.Mask & 0x08) != 0 {
+		mux := 0x8000 >> p.fineX
+		p1 := (p.bgPatternShifterLo & uint16(mux)) > 0
+		p2 := (p.bgPatternShifterHi & uint16(mux)) > 0
+		bgPixel = (boolToByte(p2) << 1) | boolToByte(p1)
+
+		a1 := (p.bgAttribShifterLo & uint16(mux)) > 0
+		a2 := (p.bgAttribShifterHi & uint16(mux)) > 0
+		bgPalette = (boolToByte(a2) << 1) | boolToByte(a1)
+	}
+
+	if bgPixel == 0 {
+		colorIndex = p.PPURead(0x3F00)
+	} else {
+		colorIndex = p.PPURead(0x3F00 + uint16(bgPalette)*4 + uint16(bgPixel))
+	}
+
+	if colorIndex > 0x3F {
+		colorIndex &= 0x3F
+	}
+	p.frame.Set(p.Cycle-1, p.Scanline, p.SystemPalette[colorIndex])
 }
 
 func boolToByte(b bool) byte {
@@ -98,432 +404,11 @@ func boolToByte(b bool) byte {
 	return 0
 }
 
-func (p *PPU) ppuWrite(addr uint16, data byte) {
-	addr &= 0x3FFF
-
-	if addr >= 0x0000 && addr <= 0x1FFF {
-		// CHR-RAM, delegated to mapper
-		if p.mapper != nil {
-			if p.mapper.PPUMapWrite(addr, data) {
-				return // Handled by mapper
-			}
-		}
-		return // Not handled by mapper (CHR-ROM is read-only)
-	} else if addr >= 0x2000 && addr <= 0x3EFF {
-		// Name Tables (VRAM), apply mirroring
-		addr &= 0x0FFF // Maps PPU addresses $2000-$3EFF to $000-$0FFF range.
-		
-		// Apply mirroring logic
-		var mirroredAddr uint16
-		if p.mapper != nil {
-			switch p.mapper.GetMirroring() {
-			case cartridge.MirrorHorizontal: // Horizontal mirroring
-				// $2000-$23FF, $2800-$2BFF -> VRAM $000-$3FF
-				// $2400-$27FF, $2C00-$2EFF -> VRAM $400-$7FF
-				mirroredAddr = addr
-				if mirroredAddr >= 0x0800 { // If in NT2/NT3 range
-					mirroredAddr -= 0x0800 // Map to NT0/NT1 physical space
-				}
-				mirroredAddr &= 0x07FF // Ensure within 2KB (0x000-0x7FF)
-			case cartridge.MirrorVertical: // Vertical mirroring
-				// $2000-$23FF, $2400-$27FF -> VRAM $000-$3FF (NT0/NT2)
-				// $2800-$2BFF, $2C00-$2EFF -> VRAM $400-$7FF (NT1/NT3)
-				mirroredAddr = addr & 0x07FF // All map to 0x000-0x7FF
-			case cartridge.MirrorOneScreenLower:
-				mirroredAddr = addr & 0x03FF // Map to first 1KB
-			case cartridge.MirrorOneScreenUpper:
-				mirroredAddr = (addr & 0x03FF) + 0x0400 // Map to second 1KB
-			default:
-				// Fallback, for now, use 2KB mapping without explicit mirroring logic
-				mirroredAddr = addr & 0x07FF
-			}
-		} else {
-			// No mapper, fall back to simple 2KB VRAM mapping
-			mirroredAddr = addr & 0x07FF
-		}
-		
-		p.vram[mirroredAddr] = data // Use mirroredAddr
-	} else if addr >= 0x3F00 && addr <= 0x3FFF {
-		// Palette RAM
-		addr &= 0x001F // 32-byte palette RAM, mirrored
-		if addr == 0x0010 || addr == 0x0014 || addr == 0x0018 || addr == 0x001C { // Special mirroring for background color
-			addr -= 0x10 // Map to $3F00, $3F04, $3F08, $3F0C
-		}
-		p.palette[addr] = data
+func getSystemPalette() [0x40]color.RGBA {
+	return [0x40]color.RGBA{
+		{84, 84, 84, 255}, {0, 30, 116, 255}, {8, 16, 144, 255}, {48, 0, 136, 255}, {68, 0, 100, 255}, {92, 0, 48, 255}, {84, 4, 0, 255}, {60, 24, 0, 255}, {32, 42, 0, 255}, {8, 58, 0, 255}, {0, 64, 0, 255}, {0, 60, 0, 255}, {0, 50, 60, 255}, {0, 0, 0, 255}, {0, 0, 0, 255}, {0, 0, 0, 255},
+		{152, 150, 152, 255}, {8, 76, 196, 255}, {48, 50, 236, 255}, {92, 30, 228, 255}, {136, 20, 176, 255}, {160, 20, 100, 255}, {152, 34, 32, 255}, {120, 60, 0, 255}, {84, 90, 0, 255}, {40, 114, 0, 255}, {8, 124, 0, 255}, {0, 118, 40, 255}, {0, 102, 120, 255}, {0, 0, 0, 255}, {0, 0, 0, 255}, {0, 0, 0, 255},
+		{236, 238, 236, 255}, {76, 154, 236, 255}, {120, 124, 236, 255}, {176, 98, 236, 255}, {228, 84, 236, 255}, {236, 88, 180, 255}, {236, 106, 100, 255}, {212, 136, 32, 255}, {160, 170, 0, 255}, {116, 196, 0, 255}, {76, 208, 32, 255}, {56, 204, 108, 255}, {56, 180, 204, 255}, {60, 60, 60, 255}, {0, 0, 0, 255}, {0, 0, 0, 255},
+		{236, 238, 236, 255}, {168, 204, 236, 255}, {188, 188, 236, 255}, {212, 178, 236, 255}, {236, 174, 236, 255}, {236, 174, 212, 255}, {236, 180, 176, 255}, {228, 196, 144, 255}, {204, 210, 120, 255}, {180, 222, 120, 255}, {168, 226, 144, 255}, {152, 226, 180, 255}, {160, 214, 228, 255}, {160, 162, 160, 255}, {0, 0, 0, 255}, {0, 0, 0, 255},
 	}
-}
-
-func (p *PPU) ppuRead(addr uint16) byte {
-	addr &= 0x3FFF
-	if addr >= 0x0000 && addr <= 0x1FFF {
-		// CHR-ROM / CHR-RAM, delegated to mapper
-		if p.mapper != nil {
-			data, handled := p.mapper.PPUMapRead(addr)
-			if handled {
-				return data
-			}
-		}
-		return 0 // Open bus if mapper doesn't handle
-	} else if addr >= 0x2000 && addr <= 0x3EFF {
-		// Name Tables (VRAM), apply mirroring
-		addr &= 0x0FFF // Maps PPU addresses $2000-$3EFF to $000-$0FFF range.
-		
-		// Apply mirroring logic (same as ppuWrite)
-		var mirroredAddr uint16
-		if p.mapper != nil {
-			switch p.mapper.GetMirroring() {
-			case cartridge.MirrorHorizontal:
-				mirroredAddr = addr
-				if mirroredAddr >= 0x0800 {
-					mirroredAddr -= 0x0800
-				}
-				mirroredAddr &= 0x07FF
-			case cartridge.MirrorVertical:
-				mirroredAddr = addr & 0x07FF
-			case cartridge.MirrorOneScreenLower:
-				mirroredAddr = addr & 0x03FF
-			case cartridge.MirrorOneScreenUpper:
-				mirroredAddr = (addr & 0x03FF) + 0x0400
-			default:
-				mirroredAddr = addr & 0x07FF
-			}
-		} else {
-			mirroredAddr = addr & 0x07FF
-		}
-		return p.vram[mirroredAddr]
-	} else if addr >= 0x3F00 && addr <= 0x3FFF {
-		// Palette RAM
-		addr &= 0x001F
-		if addr == 0x0010 || addr == 0x0014 || addr == 0x0018 || addr == 0x001C {
-			addr -= 0x10
-		}
-		return p.palette[addr]
-	}
-	return 0
-}
-
-func (p *PPU) GetPixels() []byte {
-	return p.pixels[:]
-}
-
-func (p *PPU) Clock() {
-	if p.scanline >= -1 && p.scanline < 240 {
-		if p.scanline == -1 && p.cycle == 1 {
-			p.PPUSTATUS &^= 0x80
-			p.PPUSTATUS &^= 0x40 // Clear sprite 0 hit
-			p.PPUSTATUS &^= 0x20 // Clear sprite overflow
-		}
-
-		if p.cycle == 0 { // Start of scanline
-			p.scanlineSprites = p.scanlineSprites[:0] // Clear previous scanline sprites
-			p.spriteCount = 0
-
-			// Sprite height
-			spriteHeight := byte(8)
-			if p.PPUCTRL&(1<<5) != 0 {
-				spriteHeight = 16
-			}
-
-			// Iterate OAM to find sprites for this scanline
-			oamIdx := 0
-			for i := 0; i < 64; i++ { // 64 sprites in OAM
-				s := sprite{
-					y:     p.oam[oamIdx],
-					tile:  p.oam[oamIdx+1],
-					attrs: p.oam[oamIdx+2],
-					x:     p.oam[oamIdx+3],
-				}
-				oamIdx += 4
-
-				diff := p.scanline - int(s.y)
-				if diff >= 0 && diff < int(spriteHeight) {
-					if p.spriteCount < 8 {
-						p.scanlineSprites = append(p.scanlineSprites, s)
-						p.spriteCount++
-					} else {
-						p.PPUSTATUS |= 0x20 // Set sprite overflow flag
-						// We still need to find sprite 0 hit, so continue iteration but don't add more sprites
-					}
-				}
-			}
-		}
-
-		if p.scanline >= 0 && p.cycle < 256 {
-			var bgPaletteIdx byte = 0
-			var bgPixel byte = 0
-			if p.PPUMASK&(1<<3) != 0 { // If background rendering is enabled
-				mux := 0x8000 >> uint(p.fineX)
-				bgPixel = (boolToByte((p.bgShifterPatternH & uint16(mux)) > 0) << 1) | boolToByte((p.bgShifterPatternL & uint16(mux)) > 0)
-				bgPaletteIdx = ((boolToByte((p.bgShifterAttribH & uint16(mux)) > 0) << 1) | boolToByte((p.bgShifterAttribL & uint16(mux)) > 0)) << 2
-			}
-
-			var spritePixel byte = 0
-			var spritePaletteIdx byte = 0
-			var spritePriority byte = 0
-
-			if p.PPUMASK&(1<<4) != 0 { // If sprite rendering is enabled
-				for i := 0; i < p.spriteCount; i++ {
-					if p.cycle >= int(p.spriteX[i]) && p.cycle < int(p.spriteX[i]+8) {
-						pixelIndex := p.cycle - int(p.spriteX[i])
-						spritePixel = p.spritePixels[pixelIndex].colorIndex
-						if spritePixel > 0 {
-							spritePaletteIdx = (p.spriteAttribute[i] & 0x03) << 2
-							spritePriority = p.spritePixels[pixelIndex].priority
-
-							if i == 0 && bgPixel > 0 && p.cycle != 255 { // Sprite 0 hit detection
-								p.PPUSTATUS |= 0x40 // Set sprite 0 hit flag
-							}
-							break // Only render the first opaque sprite
-						}
-					}
-				}
-			}
-
-			// Mix background and sprite pixels
-			finalPixel := bgPixel
-			finalPalette := bgPaletteIdx
-
-			if bgPixel == 0 && spritePixel > 0 { // Background is transparent, sprite is opaque
-				finalPixel = spritePixel
-				finalPalette = spritePaletteIdx + 0x10 // Sprite palettes are 0x10-0x1F
-			} else if bgPixel > 0 && spritePixel > 0 { // Both opaque
-				if spritePriority == 0 { // Sprite has priority
-					finalPixel = spritePixel
-					finalPalette = spritePaletteIdx + 0x10
-				}
-				// If spritePriority == 1, background has priority, so bgPixel and bgPaletteIdx remain
-			}
-			p.pixels[p.scanline*256+p.cycle] = p.palette[p.ppuRead(0x3F00+uint16(finalPixel|finalPalette))%0x40]
-		}
-
-		if (p.cycle >= 2 && p.cycle < 258) || (p.cycle >= 322 && p.cycle < 338) {
-			// Update shifters
-			if p.PPUMASK&(1<<3) != 0 {
-				p.bgShifterPatternL <<= 1
-				p.bgShifterPatternH <<= 1
-				p.bgShifterAttribL <<= 1
-				p.bgShifterAttribH <<= 1
-			}
-
-			switch (p.cycle - 1) % 8 {
-			case 0:
-				// Load shifters
-				p.bgShifterPatternL = (p.bgShifterPatternL & 0xFF00) | uint16(p.bgNextTileLSB)
-				p.bgShifterPatternH = (p.bgShifterPatternH & 0xFF00) | uint16(p.bgNextTileMSB)
-				p.bgShifterAttribL = (p.bgShifterAttribL & 0xFF00) | (uint16(p.bgNextTileAttrib) & 1) * 0xFF
-				p.bgShifterAttribH = (p.bgShifterAttribH & 0xFF00) | (uint16(p.bgNextTileAttrib) >> 1) * 0xFF
-
-				// Load tile ID
-				p.bgNextTileID = p.ppuRead(0x2000 | (p.vramAddr & 0x0FFF))
-			case 2:
-				// Load tile attribute
-				p.bgNextTileAttrib = p.ppuRead(0x23C0 | (p.vramAddr & 0x0C00) | ((p.vramAddr >> 4) & 0x38) | ((p.vramAddr >> 2) & 0x07))
-				if (p.vramAddr>>1)&1 != 0 {
-					p.bgNextTileAttrib >>= 4
-				}
-				if (p.vramAddr>>6)&1 != 0 {
-					p.bgNextTileAttrib >>= 2
-				}
-				p.bgNextTileAttrib &= 0x03
-			case 4:
-				// Load tile LSB
-				p.bgNextTileLSB = p.ppuRead(uint16(p.PPUCTRL&0x10)<<8 + uint16(p.bgNextTileID)<<4 + (p.vramAddr >> 12))
-			case 6:
-				// Load tile MSB
-				p.bgNextTileMSB = p.ppuRead(uint16(p.PPUCTRL&0x10)<<8 + uint16(p.bgNextTileID)<<4 + (p.vramAddr >> 12) + 8)
-			case 7:
-				// Increment horizontal vram address
-				if p.PPUMASK&(1<<3) != 0 {
-					if p.vramAddr&0x001F == 31 {
-						p.vramAddr &= ^uint16(0x001F)
-						p.vramAddr ^= 0x0400
-					} else {
-						p.vramAddr++
-					}
-				}
-			}
-		}
-
-		if p.cycle == 256 {
-			// Increment vertical vram address
-			if p.PPUMASK&(1<<3) != 0 {
-				if p.vramAddr&0x7000 != 0x7000 {
-					p.vramAddr += 0x1000
-				} else {
-					p.vramAddr &= ^uint16(0x7000)
-					y := (p.vramAddr & 0x03E0) >> 5
-					if y == 29 {
-						y = 0
-						p.vramAddr ^= 0x0800
-					} else if y == 31 {
-						y = 0
-					} else {
-						y++
-					}
-					p.vramAddr = (p.vramAddr & ^uint16(0x03E0)) | (y << 5)
-				}
-			}
-		}
-
-		if p.cycle == 320 {
-			p.fetchSpriteData()
-		}
-
-		if p.scanline == -1 && p.cycle >= 280 && p.cycle < 305 {
-			if p.PPUMASK&(1<<3) != 0 || p.PPUMASK&(1<<4) != 0 {
-				p.vramAddr = (p.vramAddr & 0x841F) | (p.vramTmpAddr & 0x7BE0)
-			}
-		}
-
-		if p.cycle == 257 {
-			if p.PPUMASK&(1<<3) != 0 || p.PPUMASK&(1<<4) != 0 {
-				p.vramAddr = (p.vramAddr & 0xFBE0) | (p.vramTmpAddr & 0x041F)
-			}
-		}
-
-		if p.scanline == 241 && p.cycle == 1 {
-			p.PPUSTATUS |= 0x80
-			if p.PPUCTRL&0x80 != 0 {
-				p.NMI = true
-			}
-		}
-	}
-
-	p.cycle++
-	if p.cycle >= 341 {
-		p.cycle = 0
-		p.scanline++
-		if p.scanline >= 261 {
-			p.scanline = -1
-		}
-	}
-}
-// Read reads from a PPU register.
-func (p *PPU) Read(addr uint16) byte {
-	switch addr {
-	case 0x0002:
-		status := p.PPUSTATUS
-		p.PPUSTATUS &^= 0x80
-		p.addrLatch = false
-		return status
-	case 0x0007:
-		data := p.dataBuffer
-		p.dataBuffer = p.ppuRead(p.vramAddr)
-		if p.vramAddr >= 0x3F00 {
-			data = p.dataBuffer
-		}
-		p.vramAddr++
-		return data
-	}
-	return 0
-}
-
-// Write writes to a PPU register.
-func (p *PPU) Write(addr uint16, data byte) {
-	switch addr {
-	case 0x0000:
-		p.PPUCTRL = data
-	case 0x0001:
-		p.PPUMASK = data
-	case 0x0003:
-		p.OAMADDR = data
-	case 0x0004:
-		p.OAMDATA = data
-	case 0x0005: // PPUSCROLL
-		if p.addrLatch {
-			p.vramTmpAddr = (p.vramTmpAddr & 0x8C1F) | ((uint16(data) & 0xF8) << 2)
-			p.vramTmpAddr = (p.vramTmpAddr & 0xFBE0) | ((uint16(data) & 0x07) << 12)
-			p.addrLatch = false
-		} else {
-			p.fineX = data & 0x07
-			p.vramTmpAddr = (p.vramTmpAddr & 0xFFE0) | (uint16(data) >> 3)
-			p.addrLatch = true
-		}
-	case 0x0006: // PPUADDR
-		if p.addrLatch {
-			p.vramTmpAddr = (p.vramTmpAddr & 0xFF00) | uint16(data)
-			p.vramAddr = p.vramTmpAddr
-			p.addrLatch = false
-		} else {
-			p.vramTmpAddr = (p.vramTmpAddr & 0x00FF) | ((uint16(data) & 0x3F) << 8)
-			p.addrLatch = true
-		}
-	case 0x0007: // PPUDATA
-		p.ppuWrite(p.vramAddr, data)
-		if p.PPUCTRL&(1<<2) == 0 {
-			p.vramAddr++
-		} else {
-			p.vramAddr += 32
-		}
-	case 0x4014:
-		p.OAMDMA = data
-	}
-}
-
-	// DoOAMDMA performs Direct Memory Access from CPU memory to OAM.
-func (p *PPU) DoOAMDMA(page byte, cpuRead func(uint16) byte) {
-	dmaAddr := uint16(page) << 8 
-	
-	for i := 0; i < 256; i++ {
-		p.oam[(p.OAMADDR + byte(i)) & 0xFF] = cpuRead(dmaAddr + uint16(i))
-	}
-}
-
-func (p *PPU) fetchSpriteData() {
-	spriteHeight := byte(8)
-	if p.PPUCTRL&(1<<5) != 0 { // 8x16 sprites
-		spriteHeight = 16
-	}
-
-	for i := 0; i < p.spriteCount; i++ {
-		s := p.scanlineSprites[i]
-
-		// Determine sprite pattern table address
-		var patternTableAddr uint16
-		if spriteHeight == 8 {
-			if p.PPUCTRL&(1<<3) != 0 { // Sprite pattern table address from PPUCTRL
-				patternTableAddr = 0x1000
-			} else {
-				patternTableAddr = 0x0000
-			}
-			patternTableAddr += uint16(s.tile) * 16 // Each tile is 16 bytes (8 for LSB, 8 for MSB)
-		} else { // 8x16 sprites
-			patternTableAddr = (uint16(s.tile&1) * 0x1000) + (uint16(s.tile&0xFE) * 16)
-		}
-
-		// Calculate row within tile
-		rowInTile := byte(p.scanline) - s.y
-		if s.attrs&(1<<7) != 0 { // Vertical flip
-			rowInTile = spriteHeight - 1 - rowInTile
-		}
-		
-		// Read LSB and MSB
-		lsb := p.ppuRead(patternTableAddr + uint16(rowInTile))
-		msb := p.ppuRead(patternTableAddr + uint16(rowInTile) + 8)
-
-		// Horizontal flip
-		if s.attrs&(1<<6) != 0 {
-			lsb = reverseByte(lsb)
-			msb = reverseByte(msb)
-		}
-
-		p.spriteAttribute[i] = s.attrs
-		p.spriteX[i] = s.x
-		
-		// This is the new part: populate spritePixels
-		for j := 0; j < 8; j++ {
-			p1 := (msb >> (7 - j)) & 1
-			p0 := (lsb >> (7 - j)) & 1
-			p.spritePixels[j].colorIndex = (p1 << 1) | p0
-			p.spritePixels[j].priority = (s.attrs >> 5) & 1
-		}
-	}
-}
-
-// Helper to reverse bits in a byte for horizontal flip
-func reverseByte(b byte) byte {
-	b = (b & 0xF0) >> 4 | (b & 0x0F) << 4
-	b = (b & 0xCC) >> 2 | (b & 0x33) << 2
-	b = (b & 0xAA) >> 1 | (b & 0x55) << 1
-	return b
 }
