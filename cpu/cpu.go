@@ -558,14 +558,13 @@ func (c *CPU) sax() byte {
 
 func (c *CPU) plp() byte {
 	c.P = c.pop()
-	c.setFlag(U, true)
+	c.setFlag(B, false) // Explicitly clear B flag (bit 4)
+	c.setFlag(U, true)  // Explicitly set U flag (bit 5)
 	return 0
 }
 
 func (c *CPU) php() byte {
 	c.push(c.P | B | U)
-	c.setFlag(B, false)
-	c.setFlag(U, false)
 	return 0
 }
 
