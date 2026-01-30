@@ -7,6 +7,13 @@ import (
 // Declare logDebug function from main package
 var LogDebug func(format string, a ...interface{})
 
+// safeLogDebug calls LogDebug if it's not nil
+func safeLogDebug(format string, a ...interface{}) {
+	if LogDebug != nil {
+		LogDebug(format, a...)
+	}
+}
+
 // Bus defines the interface for the CPU to interact with the bus.
 type Bus interface {
 	Read(addr uint16) byte
@@ -63,7 +70,7 @@ func (c *CPU) Reset() {
 	lo := uint16(c.bus.Read(c.addrAbs))
 	hi := uint16(c.bus.Read(c.addrAbs + 1))
 	c.PC = (hi << 8) | lo
-	LogDebug("CPU Reset: PC = %04X", c.PC)
+	safeLogDebug("CPU Reset: PC = %04X", c.PC)
 
 	c.A = 0
 	c.X = 0
@@ -103,11 +110,11 @@ func (c *CPU) LogState() string {
 
 // Clock performs one clock cycle.
 func (c *CPU) Clock() {
-	LogDebug("CPU Clock")
+	safeLogDebug("CPU Clock")
 	if c.Cycles == 0 {
 		c.opcode = c.bus.Read(c.PC)
 		c.PC++
-		LogDebug("CPU Clock: PC = %04X, Opcode = %02X", c.PC, c.opcode)
+		safeLogDebug("CPU Clock: PC = %04X, Opcode = %02X", c.PC, c.opcode)
 
 		instr := c.Lookup[c.opcode]
 		c.Cycles = instr.Cycles

@@ -57,6 +57,34 @@ type spriteInfo struct {
 	y, id, attr, x byte
 }
 
+// Reset resets the PPU state.
+func (p *PPU) Reset() {
+	p.Scanline = 0
+	p.Cycle = 0
+	p.Status = 0x00
+	p.Mask = 0x00
+	p.Ctrl = 0x00
+	p.vramAddr = 0x0000
+	p.vramTmpAddr = 0x0000
+	p.fineX = 0x00
+	p.fineY = 0x00
+	p.addrLatch = 0x00
+	p.ppuData = 0x00
+	p.oamAddr = 0x00
+	p.FrameCounter = 0
+	p.NMI = false
+
+	p.bgPatternShifterLo = 0x0000
+	p.bgPatternShifterHi = 0x0000
+	p.bgAttribShifterLo = 0x0000
+	p.bgAttribShifterHi = 0x0000
+	p.bgNextTileID = 0x00
+	p.bgNextTileAttrib = 0x00
+	p.bgNextTileLSB = 0x00
+	p.bgNextTileMSB = 0x00
+	p.loadBGShifters()
+}
+
 // New creates a new PPU instance.
 func New() *PPU {
 	p := &PPU{
@@ -67,6 +95,7 @@ func New() *PPU {
 		p.palette[i] = byte(i)
 	}
 	p.spriteScanline = make([]spriteInfo, 8)
+	p.Reset() // Call Reset here to initialize state
 	return p
 }
 
@@ -82,6 +111,16 @@ func (p *PPU) ConnectCartridge(cart *cartridge.Cartridge) {
 
 // Clock performs one PPU clock cycle.
 func (p *PPU) Clock() {
+	// --- NEW LOGIC: Priming shifters at the start of each scanline ---
+	// This ensures shifters are loaded with prefetched data before pixel rendering begins for the scanline.
+	// This happens when Cycle transitions from 340 to 0.
+	if p.Cycle == 0 && (p.Scanline >= -1 && p.Scanline < 240) { // Condition includes pre-render scanline.
+		if (p.Mask & 0x08) != 0 { // Only prime if background rendering is enabled
+			p.loadBGShifters()
+		}
+	}
+	// --- END NEW LOGIC ---
+
 	if p.Scanline >= -1 && p.Scanline < 240 {
 		if p.Scanline == 0 && p.Cycle == 0 {
 			// Odd frame cycle skip
@@ -93,12 +132,11 @@ func (p *PPU) Clock() {
 			p.spriteZeroHit = false
 		}
 
-		if (p.Cycle >= 2 && p.Cycle < 258) || (p.Cycle >= 322 && p.Cycle < 338) {
+		if (p.Cycle >= 1 && p.Cycle < 258) || (p.Cycle >= 322 && p.Cycle < 338) {
 			p.updateShifters()
 
 			switch (p.Cycle - 1) % 8 {
 			case 0:
-				p.loadBGShifters()
 				p.bgNextTileID = p.PPURead(0x2000 | (p.vramAddr & 0x0FFF))
 			case 2:
 				p.bgNextTileAttrib = p.PPURead(0x23C0 | (p.vramAddr & 0x0C00) | ((p.vramAddr >> 4) & 0x38) | ((p.vramAddr >> 2) & 0x07))
@@ -115,15 +153,14 @@ func (p *PPU) Clock() {
 				p.bgNextTileMSB = p.PPURead(uint16(p.Ctrl&0x10)*0x1000 + uint16(p.bgNextTileID)*16 + uint16(p.fineY) + 8)
 			case 7:
 				p.incrementScrollX()
+				p.loadBGShifters()
 			}
 		}
-
 		if p.Cycle == 256 {
 			p.incrementScrollY()
 		}
 
 		if p.Cycle == 257 {
-			p.loadBGShifters()
 			p.transferAddressX()
 		}
 
@@ -148,7 +185,7 @@ func (p *PPU) Clock() {
 		}
 	}
 
-	if p.Scanline < 240 && p.Cycle < 256 {
+	if p.Scanline < 240 && p.Cycle >= 1 && p.Cycle <= 256 {
 		p.renderPixel()
 	}
 
@@ -315,17 +352,17 @@ func (p *PPU) DoOAMDMA(data [256]byte) {
 }
 
 func (p *PPU) loadBGShifters() {
-	p.bgPatternShifterLo = (p.bgPatternShifterLo & 0xFF00) | uint16(p.bgNextTileLSB)
-	p.bgPatternShifterHi = (p.bgPatternShifterHi & 0xFF00) | uint16(p.bgNextTileMSB)
+	p.bgPatternShifterLo = (p.bgPatternShifterLo & 0x00FF) | (uint16(p.bgNextTileLSB) << 8)
+	p.bgPatternShifterHi = (p.bgPatternShifterHi & 0x00FF) | (uint16(p.bgNextTileMSB) << 8)
 	if (p.bgNextTileAttrib & 0x01) != 0 {
-		p.bgAttribShifterLo = (p.bgAttribShifterLo & 0xFF00) | 0xFF
+		p.bgAttribShifterLo = 0xFFFF
 	} else {
-		p.bgAttribShifterLo = (p.bgAttribShifterLo & 0xFF00) | 0x00
+		p.bgAttribShifterLo = 0x0000
 	}
 	if (p.bgNextTileAttrib & 0x02) != 0 {
-		p.bgAttribShifterHi = (p.bgAttribShifterHi & 0xFF00) | 0xFF
+		p.bgAttribShifterHi = 0xFFFF
 	} else {
-		p.bgAttribShifterHi = (p.bgAttribShifterHi & 0xFF00) | 0x00
+		p.bgAttribShifterHi = 0x0000
 	}
 }
 
@@ -383,7 +420,7 @@ func (p *PPU) transferAddressY() {
 	}
 }
 
-// Rendering
+// Sprite evaluation
 func (p *PPU) evaluateSprites() {
 	p.spriteScanline = p.spriteScanline[:0]
 	var count byte = 0
@@ -407,17 +444,35 @@ func (p *PPU) evaluateSprites() {
 }
 
 func (p *PPU) renderPixel() {
+
 	var bgPixel byte
+
 	var bgPalette byte
+
+	var mux uint16 // Declared outside the if block
+
+	var p1, p2, a1, a2 bool // Declared outside the if block
+
+
+
 	if (p.Mask & 0x08) != 0 {
-		mux := 0x8000 >> p.fineX
-		p1 := (p.bgPatternShifterLo & uint16(mux)) > 0
-		p2 := (p.bgPatternShifterHi & uint16(mux)) > 0
+
+		mux = 0x8000 >> p.fineX
+
+		p1 = (p.bgPatternShifterLo & uint16(mux)) > 0
+
+		p2 = (p.bgPatternShifterHi & uint16(mux)) > 0
+
 		bgPixel = (boolToByte(p2) << 1) | boolToByte(p1)
 
-		a1 := (p.bgAttribShifterLo & uint16(mux)) > 0
-		a2 := (p.bgAttribShifterHi & uint16(mux)) > 0
+
+
+		a1 = (p.bgAttribShifterLo & uint16(mux)) > 0
+
+		a2 = (p.bgAttribShifterHi & uint16(mux)) > 0
+
 		bgPalette = (boolToByte(a2) << 1) | boolToByte(a1)
+
 	}
 
 	var spPixel byte

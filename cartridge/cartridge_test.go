@@ -8,7 +8,7 @@ import (
 
 func TestNew(t *testing.T) {
 	// Create a dummy .nes file
-	header := []byte{0x4E, 0x45, 0x53, 0x1A, 0x02, 0x01, 0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+	header := []byte{0x4E, 0x45, 0x53, 0x1A, 0x02, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 	prg := make([]byte, 2*16384)
 	chr := make([]byte, 1*8192)
 	data := append(header, prg...)
@@ -36,7 +36,11 @@ func TestNew(t *testing.T) {
 	if len(cart.CHRROM) != 1*8192 {
 		t.Errorf("Expected CHRROM size to be %d, but got %d", 1*8192, len(cart.CHRROM))
 	}
-	if cart.Mapper != 3 {
-		t.Errorf("Expected mapper to be 3, but got %d", cart.Mapper)
+	// Check if the mapper is NROM (type *nrom)
+	if _, ok := cart.Mapper.(*nrom); !ok {
+		t.Errorf("Expected NROM mapper, but got %T", cart.Mapper)
+	}
+	if cart.Mirror != MirrorHorizontal {
+		t.Errorf("Expected mirroring to be Horizontal, but got %d", cart.Mirror)
 	}
 }
