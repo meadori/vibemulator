@@ -83,6 +83,11 @@ func (p *PPU) Reset() {
 	p.bgNextTileLSB = 0x00
 	p.bgNextTileMSB = 0x00
 	p.loadBGShifters()
+
+	// Initialize palette RAM to 0x0F (black) on reset
+	for i := range p.palette {
+		p.palette[i] = 0x0F
+	}
 }
 
 // New creates a new PPU instance.
@@ -91,9 +96,7 @@ func New() *PPU {
 		frame: image.NewRGBA(image.Rect(0, 0, 256, 240)),
 	}
 	p.SystemPalette = getSystemPalette()
-	for i := range p.palette {
-		p.palette[i] = byte(i)
-	}
+
 	p.spriteScanline = make([]spriteInfo, 8)
 	p.Reset() // Call Reset here to initialize state
 	return p
