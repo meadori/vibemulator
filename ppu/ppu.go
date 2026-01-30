@@ -289,11 +289,17 @@ func (p *PPU) CPURead(addr uint16) byte {
 	case 0x0005: // Scroll
 	case 0x0006: // PPU Address
 	case 0x0007: // PPU Data
-		data = p.ppuData
-		p.ppuData = p.PPURead(p.vramAddr)
+		data = p.ppuData // Always return the buffered data
+
+		// Update the buffer with the content at current vramAddr
+		// If vramAddr is in the palette range, fetch from the mirrored nametable for the buffer
 		if p.vramAddr >= 0x3F00 {
-			data = p.PPURead(p.vramAddr)
+			p.ppuData = p.PPURead(p.vramAddr - 0x1000) // Read from mirrored nametable space for buffer
+			data = p.PPURead(p.vramAddr)               // Return actual palette value immediately
+		} else {
+			p.ppuData = p.PPURead(p.vramAddr)
 		}
+
 		if (p.Ctrl & 0x04) != 0 {
 			p.vramAddr += 32
 		} else {
