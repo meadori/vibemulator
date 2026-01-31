@@ -314,6 +314,9 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0x23: {"RLA", c.rla, c.izx, "izx", 8},
 		0x33: {"RLA", c.rla, c.izy, "izy", 8},
 
+		// Unofficial SRE (LSR and EOR)
+		0x47: {"SRE", c.sre, c.zp0, "zp0", 5},
+
 		// Unofficial Shift/Rotate (RRA)
 		0x67: {"RRA", c.rra, c.zp0, "zp0", 5},
 		0x77: {"RRA", c.rra, c.zpx, "zpx", 6},
@@ -804,6 +807,26 @@ func (c *CPU) isc() byte {
 	c.setFlag('N', res&0x0080 != 0)
 	c.A = byte(res & 0x00FF)
 	return 0
+}
+
+// Unofficial SRE (LSR and EOR)
+// M = LSR M, A = A EOR M
+func (c *CPU) sre() byte {
+	c.fetch() // c.fetched will contain M (value from c.addrAbs)
+
+	// LSR operation on M
+	c.setFlag('C', c.fetched&1 != 0) // Bit 0 of M to Carry
+	shiftedM := c.fetched >> 1
+
+	c.bus.Write(c.addrAbs, shiftedM) // Write shifted M back to memory
+
+	// EOR operation with A
+	c.A = c.A ^ shiftedM
+	c.setFlag('Z', c.A == 0)
+	c.setFlag('N', c.A&0x80 != 0)
+
+	// SRE does not affect V flag.
+	return 0 // Extra cycles handled by lookup
 }
 
 // Unofficial AXS (SBX)
