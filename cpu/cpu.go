@@ -154,6 +154,9 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0xA1: {"LDA", c.lda, c.izx, "izx", 6},
 		0xB1: {"LDA", c.lda, c.izy, "izy", 5},
 
+		// Unofficial SLO (ASL and ORA) - absolute
+		0x0F: {"SLO", c.slo, c.abs, "abs", 6},
+
 		// Unofficial Load (LAS)
 		0xBB: {"LAS", c.las, c.aby, "aby", 4}, // LAS (LAR)
 
