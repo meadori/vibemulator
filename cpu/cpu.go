@@ -143,6 +143,7 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0x00: {"BRK", c.brk, c.imp, "imp", 7}, // BRK (software interrupt)
 		// Unofficial SLO (ASL and ORA)
 		0x07: {"SLO", c.slo, c.zp0, "zp0", 5},
+		0x17: {"SLO", c.slo, c.zpx, "zpx", 6},
 		// LDA
 		0xA9: {"LDA", c.lda, c.imm, "imm", 2},
 		0xA5: {"LDA", c.lda, c.zp0, "zp0", 3},
