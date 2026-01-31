@@ -149,9 +149,9 @@ func (p *PPU) Clock() {
 				}
 				p.bgNextTileAttrib &= 0x03
 			case 4:
-				p.bgNextTileLSB = p.PPURead(uint16(p.Ctrl&0x10)*0x1000 + uint16(p.bgNextTileID)*16 + ((p.vramAddr >> 12) & 0x07))
+				p.bgNextTileLSB = p.PPURead((uint16(p.Ctrl>>4)&1)*0x1000 + uint16(p.bgNextTileID)*16 + ((p.vramAddr >> 12) & 0x07))
 			case 6:
-				p.bgNextTileMSB = p.PPURead(uint16(p.Ctrl&0x10)*0x1000 + uint16(p.bgNextTileID)*16 + ((p.vramAddr >> 12) & 0x07) + 8)
+				p.bgNextTileMSB = p.PPURead((uint16(p.Ctrl>>4)&1)*0x1000 + uint16(p.bgNextTileID)*16 + ((p.vramAddr >> 12) & 0x07) + 8)
 			case 7:
 				p.incrementScrollX()
 				p.loadBGShifters()
