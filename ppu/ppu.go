@@ -337,7 +337,7 @@ func (p *PPU) CPUWrite(addr uint16, data byte) {
 		}
 	case 0x0006: // PPU Address
 		if p.addrLatch == 0 {
-			p.vramTmpAddr = (p.vramTmpAddr & 0x00FF) | (uint16(data) << 8)
+			p.vramTmpAddr = (p.vramTmpAddr & 0x00FF) | ((uint16(data) & 0x3F) << 8)
 			p.addrLatch = 1
 		} else {
 			p.vramTmpAddr = (p.vramTmpAddr & 0xFF00) | uint16(data)
