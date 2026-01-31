@@ -318,6 +318,10 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0x23: {"RLA", c.rla, c.izx, "izx", 8},
 		0x33: {"RLA", c.rla, c.izy, "izy", 8},
 
+		// Unofficial SRE (LSR and EOR) - absolute
+		0x4F: {"SRE", c.sre, c.abs, "abs", 6},
+
+
 		// Unofficial SRE (LSR and EOR)
 		0x47: {"SRE", c.sre, c.zp0, "zp0", 5},
 		0x57: {"SRE", c.sre, c.zpx, "zpx", 6},
