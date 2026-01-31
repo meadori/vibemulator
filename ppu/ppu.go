@@ -13,6 +13,7 @@ var LogDebug func(format string, a ...interface{})
 // PPU represents the Picture Processing Unit.
 type PPU struct {
 	cart         *cartridge.Cartridge
+	nt_map       [4]uint16
 	vram         [2048]byte
 	oam          [256]byte
 	palette      [32]byte
@@ -108,6 +109,12 @@ func (p *PPU) GetFrame() *image.RGBA {
 // ConnectCartridge connects the cartridge to the PPU.
 func (p *PPU) ConnectCartridge(cart *cartridge.Cartridge) {
 	p.cart = cart
+	mirror := p.cart.Mapper.GetMirroring()
+	if mirror == cartridge.MirrorVertical {
+		p.nt_map = [4]uint16{0x0000, 0x0400, 0x0000, 0x0400}
+	} else if mirror == cartridge.MirrorHorizontal {
+		p.nt_map = [4]uint16{0x0000, 0x0000, 0x0400, 0x0400}
+	}
 }
 
 // Clock performs one PPU clock cycle.
@@ -261,14 +268,9 @@ func (p *PPU) PPUWrite(addr uint16, data byte) {
 }
 
 func (p *PPU) getMirrorAddress(addr uint16) uint16 {
-	mirror := p.cart.Mapper.GetMirroring()
-	if mirror == cartridge.MirrorVertical {
-		return addr & 0x07FF
-	}
-	if mirror == cartridge.MirrorHorizontal {
-		return (addr & 0x03FF) | ((addr >> 1) & 0x0400)
-	}
-	return addr
+	nametableIndex := (addr >> 10) & 3
+	offset := addr & 0x03FF
+	return p.nt_map[nametableIndex] + offset
 }
 
 // CPURead reads from PPU registers.
