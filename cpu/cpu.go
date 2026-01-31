@@ -258,19 +258,19 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0xF3: {"ISC", c.isc, c.izy, "izy", 8},
 
 		// Unofficial NOPs (DOP - Double OPeration, immediate)
-		0x04: {"DOP", c.nop, c.zp0, "zp0", 3},
-		0x14: {"DOP", c.nop, c.zpx, "zpx", 4},
-		0x34: {"DOP", c.nop, c.zpx, "zpx", 4},
-		0x44: {"DOP", c.nop, c.zp0, "zp0", 3},
-		0x54: {"DOP", c.nop, c.zpx, "zpx", 4},
-		0x74: {"DOP", c.nop, c.zpx, "zpx", 4},
-		0xD4: {"DOP", c.nop, c.zpx, "zpx", 4},
-		0xF4: {"DOP", c.nop, c.zpx, "zpx", 4},
-		0x80: {"DOP", c.nop, c.imm, "imm", 3},
-		0x82: {"DOP", c.nop, c.imm, "imm", 3},
-		0x89: {"DOP", c.nop, c.imm, "imm", 3},
-		0xC2: {"DOP", c.nop, c.imm, "imm", 3},
-		0xE2: {"DOP", c.nop, c.imm, "imm", 3},
+		0x04: {"DOP", c.dope, c.zp0, "zp0", 3},
+		0x14: {"DOP", c.dope, c.zpx, "zpx", 4},
+		0x34: {"DOP", c.dope, c.zpx, "zpx", 4},
+		0x44: {"DOP", c.dope, c.zp0, "zp0", 3},
+		0x54: {"DOP", c.dope, c.zpx, "zpx", 4},
+		0x74: {"DOP", c.dope, c.zpx, "zpx", 4},
+		0xD4: {"DOP", c.dope, c.zpx, "zpx", 4},
+		0xF4: {"DOP", c.dope, c.zpx, "zpx", 4},
+		0x80: {"DOP", c.dope, c.imm, "imm", 3},
+		0x82: {"DOP", c.dope, c.imm, "imm", 3},
+		0x89: {"DOP", c.dope, c.imm, "imm", 3},
+		0xC2: {"DOP", c.dope, c.imm, "imm", 3},
+		0xE2: {"DOP", c.dope, c.imm, "imm", 3},
 
 		// Logical
 		0x29: {"AND", c.and, c.imm, "imm", 2},
@@ -1178,6 +1178,11 @@ func (c *CPU) jmp() byte {
 func (c *CPU) nop() byte {
 	// Do nothing
 	return 0
+}
+
+func (c *CPU) dope() byte {
+    c.fetch() // Fetch the operand, but do nothing with it
+    return 0
 }
 
 func (c *CPU) bit() byte {
