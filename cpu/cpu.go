@@ -194,6 +194,9 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0x81: {"STA", c.sta, c.izx, "izx", 6},
 		0x91: {"STA", c.sta, c.izy, "izy", 6},
 
+		// Unofficial SYA (SHY) - absolute,X
+		0x9C: {"SYA", c.sya, c.abx, "abx", 5},
+
 		// STX
 		0x86: {"STX", c.stx, c.zp0, "zp0", 3},
 		0x96: {"STX", c.stx, c.zpy, "zpy", 4},
@@ -587,6 +590,16 @@ func (c *CPU) sty() byte {
 
 func (c *CPU) stx() byte {
 	c.bus.Write(c.addrAbs, c.X)
+	return 0
+}
+
+// Unofficial SYA (SHY)
+// M = Y AND (high_byte_of_operand + 1)
+func (c *CPU) sya() byte {
+	// The high byte of the absolute address operand is at PC-1 (since PC was incremented twice by abx)
+	hi_operand := c.bus.Read(c.PC - 1) 
+	val := c.Y & (hi_operand + 1) // Y AND (high_byte_of_operand + 1)
+	c.bus.Write(c.addrAbs, val)
 	return 0
 }
 
