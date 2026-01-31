@@ -141,6 +141,8 @@ func (c *CPU) pop() byte {
 func (c *CPU) createLookupTable() [256]Instruction {
 	lookup := [256]Instruction{
 		0x00: {"BRK", c.brk, c.imp, "imp", 7}, // BRK (software interrupt)
+		// Unofficial SLO (ASL and ORA) - Indexed Indirect X
+		0x03: {"SLO", c.slo, c.izx, "izx", 8},
 		// Unofficial SLO (ASL and ORA)
 		0x07: {"SLO", c.slo, c.zp0, "zp0", 5},
 		0x17: {"SLO", c.slo, c.zpx, "zpx", 6},
