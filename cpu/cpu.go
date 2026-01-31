@@ -160,12 +160,10 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0xAF: {"LAX", c.lax, c.abs, "abs", 4},
 		0xBF: {"LAX", c.lax, c.aby, "aby", 4},
 		0xA3: {"LAX", c.lax, c.izx, "izx", 6},
-				0xB3: {"LAX", c.lax, c.izy, "izy", 5},
-		
-				// Unofficial Load (LXA)
-				0xAB: {"LXA", c.nop, c.imm, "imm", 2}, // LXA (LAX immediate) - Unstable, treat as NOP
-		
-				// LDX
+		0xB3: {"LAX", c.lax, c.izy, "izy", 5},
+		// Unofficial Load (ATX / LXA)
+		0xAB: {"ATX", c.atx, c.imm, "imm", 2},
+		// LDX
 				0xA2: {"LDX", c.ldx, c.imm, "imm", 2},
 		0xA6: {"LDX", c.ldx, c.zp0, "zp0", 3},
 		0xB6: {"LDX", c.ldx, c.zpy, "zpy", 4},
@@ -658,6 +656,18 @@ func (c *CPU) las() byte {
 	c.A = val
 	c.X = val
 	c.SP = val
+	c.setFlag('Z', val == 0)
+	c.setFlag('N', val&0x80 != 0)
+	return 0
+}
+
+// Unofficial ATX (OAL/AXA)
+// (A AND X) AND M -> A, X
+func (c *CPU) atx() byte {
+	c.fetch() // c.fetched will contain M (the immediate operand)
+	val := c.A & c.X & c.fetched
+	c.A = val
+	c.X = val
 	c.setFlag('Z', val == 0)
 	c.setFlag('N', val&0x80 != 0)
 	return 0
