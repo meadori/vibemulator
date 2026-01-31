@@ -24,7 +24,6 @@ type PPU struct {
 	vramAddr     uint16
 	vramTmpAddr  uint16
 	fineX        byte
-	fineY        byte
 	addrLatch    byte
 	ppuData      byte
 	oamAddr      byte
@@ -67,7 +66,6 @@ func (p *PPU) Reset() {
 	p.vramAddr = 0x0000
 	p.vramTmpAddr = 0x0000
 	p.fineX = 0x00
-	p.fineY = 0x00
 	p.addrLatch = 0x00
 	p.ppuData = 0x00
 	p.oamAddr = 0x00
@@ -151,9 +149,9 @@ func (p *PPU) Clock() {
 				}
 				p.bgNextTileAttrib &= 0x03
 			case 4:
-				p.bgNextTileLSB = p.PPURead(uint16(p.Ctrl&0x10)*0x1000 + uint16(p.bgNextTileID)*16 + uint16(p.fineY))
+				p.bgNextTileLSB = p.PPURead(uint16(p.Ctrl&0x10)*0x1000 + uint16(p.bgNextTileID)*16 + ((p.vramAddr >> 12) & 0x07))
 			case 6:
-				p.bgNextTileMSB = p.PPURead(uint16(p.Ctrl&0x10)*0x1000 + uint16(p.bgNextTileID)*16 + uint16(p.fineY) + 8)
+				p.bgNextTileMSB = p.PPURead(uint16(p.Ctrl&0x10)*0x1000 + uint16(p.bgNextTileID)*16 + ((p.vramAddr >> 12) & 0x07) + 8)
 			case 7:
 				p.incrementScrollX()
 				p.loadBGShifters()
@@ -399,10 +397,10 @@ func (p *PPU) incrementScrollX() {
 
 func (p *PPU) incrementScrollY() {
 	if (p.Mask & 0x08) != 0 {
-		if p.fineY < 7 {
-			p.fineY++
+		if (p.vramAddr & 0x7000) != 0x7000 { // if fine Y < 7
+			p.vramAddr += 0x1000 // increment fine Y
 		} else {
-			p.fineY = 0
+			p.vramAddr &= 0x8FFF // fine Y = 0
 			y := (p.vramAddr & 0x03E0) >> 5
 			if y == 29 {
 				y = 0
@@ -426,7 +424,6 @@ func (p *PPU) transferAddressX() {
 func (p *PPU) transferAddressY() {
 	if (p.Mask & 0x08) != 0 {
 		p.vramAddr = (p.vramAddr & 0x841F) | (p.vramTmpAddr & 0x7BE0)
-		p.fineY = byte((p.vramTmpAddr >> 12) & 0x07)
 	}
 }
 
