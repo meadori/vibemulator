@@ -328,17 +328,14 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0x23: {"RLA", c.rla, c.izx, "izx", 8},
 		0x33: {"RLA", c.rla, c.izy, "izy", 8},
 
-		// Unofficial SRE (LSR and EOR) - Indexed Indirect X
-		0x43: {"SRE", c.sre, c.izx, "izx", 8},
-		// Unofficial SRE (LSR and EOR) - absolute
-		0x4F: {"SRE", c.sre, c.abs, "abs", 6},
-		0x5F: {"SRE", c.sre, c.abx, "abx", 7},
-		0x5B: {"SRE", c.sre, c.aby, "aby", 7},
-
-
 		// Unofficial SRE (LSR and EOR)
-		0x47: {"SRE", c.sre, c.zp0, "zp0", 5},
-		0x57: {"SRE", c.sre, c.zpx, "zpx", 6},
+		0x43: {"SRE", c.sre, c.izx, "izx", 8}, // Indexed Indirect X
+		0x47: {"SRE", c.sre, c.zp0, "zp0", 5}, // Zero Page
+		0x4F: {"SRE", c.sre, c.abs, "abs", 6}, // Absolute
+		0x53: {"SRE", c.sre, c.izy, "izy", 8}, // Indexed Indirect Y
+		0x57: {"SRE", c.sre, c.zpx, "zpx", 6}, // Zero Page X
+		0x5B: {"SRE", c.sre, c.aby, "aby", 7}, // Absolute Y
+		0x5F: {"SRE", c.sre, c.abx, "abx", 7}, // Absolute X
 
 		// Unofficial Shift/Rotate (RRA)
 		0x67: {"RRA", c.rra, c.zp0, "zp0", 5},
