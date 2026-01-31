@@ -317,6 +317,7 @@ func (c *CPU) createLookupTable() [256]Instruction {
 
 		// Unofficial SRE (LSR and EOR)
 		0x47: {"SRE", c.sre, c.zp0, "zp0", 5},
+		0x57: {"SRE", c.sre, c.zpx, "zpx", 6},
 
 		// Unofficial Shift/Rotate (RRA)
 		0x67: {"RRA", c.rra, c.zp0, "zp0", 5},
