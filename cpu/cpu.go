@@ -222,6 +222,9 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0xE1: {"SBC", c.sbc, c.izx, "izx", 6},
 		0xF1: {"SBC", c.sbc, c.izy, "izy", 5},
 
+		// Unofficial SBC (immediate)
+		0xEB: {"SBC", c.sbc, c.imm, "imm", 2},
+
 		// Increment/Decrement
 		0xE6: {"INC", c.inc, c.zp0, "zp0", 5},
 		0xF6: {"INC", c.inc, c.zpx, "zpx", 6},
@@ -254,6 +257,20 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0xE3: {"ISC", c.isc, c.izx, "izx", 8},
 		0xF3: {"ISC", c.isc, c.izy, "izy", 8},
 
+		// Unofficial NOPs (DOP - Double OPeration, immediate)
+		0x04: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
+		0x14: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
+		0x34: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
+		0x44: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
+		0x54: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
+		0x74: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
+		0xD4: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
+		0xF4: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
+		0x80: {"DOP", c.nop, c.imm, "imm", 3},
+		0x82: {"DOP", c.nop, c.imm, "imm", 3},
+		0x89: {"DOP", c.nop, c.imm, "imm", 3},
+		0xC2: {"DOP", c.nop, c.imm, "imm", 3},
+		0xE2: {"DOP", c.nop, c.imm, "imm", 3},
 
 		// Logical
 		0x29: {"AND", c.and, c.imm, "imm", 2},
@@ -364,6 +381,9 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0xC0: {"CPY", c.cpy, c.imm, "imm", 2},
 		0xC4: {"CPY", c.cpy, c.zp0, "zp0", 3},
 		0xCC: {"CPY", c.cpy, c.abs, "abs", 4},
+
+		// Unofficial AXS (SBX)
+		0xCB: {"AXS", c.axs, c.imm, "imm", 2},
 
 		// Jump
 		0x4C: {"JMP", c.jmp, c.abs, "abs", 3},
@@ -653,16 +673,16 @@ func (c *CPU) lax() byte {
 }
 
 func (c *CPU) sbc() byte {
-	c.fetch()
+	c.fetch() // c.fetched will contain M
 	temp := uint16(c.A) - uint16(c.fetched) - (1 - uint16(c.getFlag('C')))
+	
 	c.setFlag('C', temp < 0x100)
 	c.setFlag('Z', (temp&0x00FF) == 0)
 	c.setFlag('V', ((uint16(c.A) ^ temp) & (0x00FF ^ uint16(c.fetched) ^ temp)) & 0x0080 != 0)
 	c.setFlag('N', temp&0x0080 != 0)
 	c.A = byte(temp & 0x00FF)
-	return 1
+	return 0
 }
-
 func (c *CPU) adc() byte {
 	c.fetch()
 	temp := uint16(c.A) + uint16(c.fetched) + uint16(c.getFlag('C'))
@@ -671,7 +691,7 @@ func (c *CPU) adc() byte {
 	c.setFlag('V', ((uint16(c.A) ^ temp) & (uint16(c.fetched) ^ temp)) & 0x0080 != 0)
 	c.setFlag('N', temp&0x80 != 0)
 	c.A = byte(temp & 0x00FF)
-	return 1
+	return 0
 }
 
 func (c *CPU) dey() byte {
@@ -752,6 +772,25 @@ func (c *CPU) isc() byte {
 	return 0
 }
 
+// Unofficial AXS (SBX)
+// (A AND X) - M -> X
+func (c *CPU) axs() byte {
+	c.fetch()
+	val := c.A & c.X
+	res := uint16(val) - uint16(c.fetched) - (1 - uint16(c.getFlag('C')))
+	
+	// Flags affected: C, Z, N
+	// C: if no borrow (result >= 0)
+	// Z: if result is zero
+	// N: if bit 7 of result is set
+	c.setFlag('C', res < 0x100) // If borrow, C is clear (equivalent to C set on A >= fetched in normal subtraction)
+	c.setFlag('Z', (res&0x00FF) == 0)
+	c.setFlag('N', res&0x0080 != 0)
+	
+	c.X = byte(res & 0x00FF)
+	return 0
+}
+
 func (c *CPU) eor() byte {
 	c.fetch()
 	c.A = c.A ^ c.fetched
@@ -813,23 +852,20 @@ func (c *CPU) ror() byte {
 }
 
 func (c *CPU) arr() byte {
-	c.fetch()
-	c.A = c.A & c.fetched
-	c.setFlag('Z', c.A == 0)
-	c.setFlag('N', c.A&0x80 != 0)
+	c.fetch() // c.fetched will contain M (the immediate operand)
+	c.A = c.A & c.fetched // (A AND M)
 
 	// ROR operation
 	oldC := c.getFlag('C')
-	c.setFlag('C', c.A&1 != 0)
-	c.A = (c.A >> 1) | (oldC << 7)
+	c.setFlag('C', c.A&1 != 0) // Bit 0 of A to Carry
+	c.A = (c.A >> 1) | (oldC << 7) // Shift A right, old C to bit 7
 
 	// Update N, Z flags based on new A
 	c.setFlag('Z', c.A == 0)
 	c.setFlag('N', c.A&0x80 != 0)
 
 	// ARR specific V flag update
-	c.setFlag('V', ((c.A>>6)&1)^((c.A>>5)&1) != 0)
-
+	c.setFlag('V', ((c.A>>6)&1)^((c.A>>5)&1) != 0) // V is (bit 6 ^ bit 5) of A after ROR
 	return 0
 }
 
@@ -1031,7 +1067,7 @@ func (c *CPU) cmp() byte {
 	c.setFlag('C', c.A >= c.fetched)
 	c.setFlag('Z', temp == 0)
 	c.setFlag('N', temp&0x80 != 0)
-	return 1
+	return 0
 }
 
 func (c *CPU) rti() byte {
