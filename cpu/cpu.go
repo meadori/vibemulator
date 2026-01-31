@@ -390,6 +390,9 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		// Unofficial AXS (SBX)
 		0xCB: {"AXS", c.axs, c.imm, "imm", 2},
 
+		// Unofficial NOP (TOP) - absolute
+		0x0C: {"TOP", c.dope, c.abs, "abs", 4},
+
 		// Jump
 		0x4C: {"JMP", c.jmp, c.abs, "abs", 3},
 		0x6C: {"JMP", c.jmp, c.ind, "ind", 5},
