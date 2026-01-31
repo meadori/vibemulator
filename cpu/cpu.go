@@ -963,19 +963,65 @@ func (c *CPU) ror() byte {
 
 func (c *CPU) arr() byte {
 	c.fetch() // c.fetched will contain M (the immediate operand)
-	c.A = c.A & c.fetched // (A AND M)
 
-	// ROR operation
-	oldC := c.getFlag('C')
-	c.setFlag('C', (c.A>>6)&1 != 0) // Bit 6 of A to Carry
-	c.A = (c.A >> 1) | (oldC << 7) // Shift A right, old C to bit 7
+	origC := c.getFlag('C') // Store original C flag for decimal mode N flag calculation
 
-	// Update N, Z flags based on new A
-	c.setFlag('Z', c.A == 0)
-	c.setFlag('N', c.A&0x80 != 0)
+	// Common part: A = A AND M
+	c.A = c.A & c.fetched // This is 't' from the C routine, but also updates Accumulator
 
-	// ARR specific V flag update
-	c.setFlag('V', ((c.A>>6)&1)^((c.A>>5)&1) != 0) // V is (bit 6 ^ bit 5) of A after ROR
+	if c.getFlag('D') == 1 { // Decimal mode (D flag set)
+		t := c.A // 't' from the C routine after AND operation (c.A & s)
+
+		// Perform ROR operation, storing result in a temporary variable 'postRorA'
+		// This 'postRorA' corresponds to 'A = (t >> 1) | (C << 7)' from the C routine
+		postRorA := (t >> 1) | (origC << 7)
+
+		// Set N and Z flags based on the description's C routine
+		// N is copied from the initial C flag (before the ROR shifted it)
+		c.setFlag('N', origC == 1)
+		// Z is set according to the ROR result, as expected.
+		c.setFlag('Z', postRorA == 0)
+
+		// V flag: V = (t ^ A_post_ror) & 0x40 (bit 6)
+		c.setFlag('V', ((t ^ postRorA) & 0x40) != 0)
+
+		// BCD "fixup" for low nybble and high nybble
+		AL := t & 0x0F // Low nybble of 't' (A & M)
+		AH := (t >> 4) & 0x0F // High nybble of 't' (A & M)
+
+		finalA := postRorA // Start with post-ROR A for BCD adjustments
+
+		// BCD "fixup" for low nybble.
+		// if (AL + (AL & 1) > 5)
+		if (AL + (AL & 0x01)) > 5 { // AL & 0x01 is a common way to get lowmost bit for parity in BCD context
+			finalA = (finalA & 0xF0) | ((finalA + 6) & 0x0F)
+		}
+
+		// Set the Carry flag and BCD "fixup" for high nybble.
+		// C = (AH + (AH & 1)) > 5
+		newC := ((AH + (AH & 0x01)) > 5)
+		c.setFlag('C', newC)
+
+		if newC {
+			finalA = (finalA + 0x60) & 0xFF
+		}
+
+		// Update Accumulator with final adjusted value
+		c.A = byte(finalA)
+
+	} else { // Binary mode (D flag clear)
+		// ROR operation
+		oldC := origC // C flag at start of instruction
+		c.setFlag('C', (c.A>>6)&1 != 0) // C is bit 6 of A after ROR
+		c.A = (c.A >> 1) | (oldC << 7) // Shift A right, old C to bit 7
+
+		// Update N, Z flags based on new A
+		c.setFlag('Z', c.A == 0)
+		c.setFlag('N', c.A&0x80 != 0)
+
+		// ARR specific V flag update
+		c.setFlag('V', ((c.A>>6)&1)^((c.A>>5)&1) != 0) // V is (bit 6 ^ bit 5) of A after ROR
+	}
 	return 0
 }
 
