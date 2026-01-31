@@ -967,7 +967,7 @@ func (c *CPU) arr() byte {
 
 	// ROR operation
 	oldC := c.getFlag('C')
-	c.setFlag('C', c.A&1 != 0) // Bit 0 of A to Carry
+	c.setFlag('C', (c.A>>6)&1 != 0) // Bit 6 of A to Carry
 	c.A = (c.A >> 1) | (oldC << 7) // Shift A right, old C to bit 7
 
 	// Update N, Z flags based on new A
