@@ -213,6 +213,9 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0x8F: {"SAX", c.sax, c.abs, "abs", 4},
 		0x83: {"SAX", c.sax, c.izx, "izx", 6},
 
+		// Unofficial SXA (SHX) - absolute,Y
+		0x9E: {"SXA", c.sxa, c.aby, "aby", 5},
+
 		// Arithmetic
 		0x69: {"ADC", c.adc, c.imm, "imm", 2},
 		0x65: {"ADC", c.adc, c.zp0, "zp0", 3},
@@ -612,6 +615,16 @@ func (c *CPU) sta() byte {
 
 func (c *CPU) sax() byte {
 	val := c.A & c.X
+	c.bus.Write(c.addrAbs, val)
+	return 0
+}
+
+// Unofficial SXA (SHX)
+// M = X AND (high_byte_of_operand + 1)
+func (c *CPU) sxa() byte {
+	// The high byte of the absolute address operand is at PC-1 (since PC was incremented twice by aby)
+	hi_operand := c.bus.Read(c.PC - 1)
+	val := c.X & (hi_operand + 1) // X AND (high_byte_of_operand + 1)
 	c.bus.Write(c.addrAbs, val)
 	return 0
 }
