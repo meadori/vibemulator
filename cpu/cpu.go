@@ -792,9 +792,10 @@ func (c *CPU) dcp() byte {
 }
 
 func (c *CPU) isc() byte {
-	c.fetch()
+	c.fetch() // c.fetched will contain the M (value from c.addrAbs)
+	
 	// INC operation
-	temp := c.fetched + 1
+	temp := c.fetched + 1 // Use temp as the incremented value for consistency with SBC
 	c.bus.Write(c.addrAbs, temp)
 
 	// SBC operation (similar to regular SBC, but with the incremented value)
