@@ -399,6 +399,8 @@ func (c *CPU) createLookupTable() [256]Instruction {
 
 		// Unofficial NOP (TOP) - absolute
 		0x0C: {"TOP", c.dope, c.abs, "abs", 4},
+		// Unofficial NOP (TOP) - absolute,X
+		0x1C: {"TOP", c.dope, c.abx, "abx", 4},
 
 		// Jump
 		0x4C: {"JMP", c.jmp, c.abs, "abs", 3},
