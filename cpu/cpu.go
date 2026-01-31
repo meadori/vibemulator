@@ -141,6 +141,8 @@ func (c *CPU) pop() byte {
 func (c *CPU) createLookupTable() [256]Instruction {
 	lookup := [256]Instruction{
 		0x00: {"BRK", c.brk, c.imp, "imp", 7}, // BRK (software interrupt)
+		// Unofficial SLO (ASL and ORA)
+		0x07: {"SLO", c.slo, c.zp0, "zp0", 5},
 		// LDA
 		0xA9: {"LDA", c.lda, c.imm, "imm", 2},
 		0xA5: {"LDA", c.lda, c.zp0, "zp0", 3},
@@ -648,6 +650,27 @@ func (c *CPU) lda() byte {
 	c.setFlag('Z', c.A == 0)
 	c.setFlag('N', c.A&0x80 != 0)
 	return 0
+}
+
+// Unofficial SLO (ASL and ORA)
+// M = ASL M, A = A OR M
+func (c *CPU) slo() byte {
+	c.fetch() // c.fetched will contain M (value from c.addrAbs)
+
+	// ASL operation on M
+	temp := uint16(c.fetched) << 1
+	c.setFlag('C', temp > 0xFF) // Set C from bit 7 of M
+
+	shiftedM := byte(temp & 0x00FF)
+	c.bus.Write(c.addrAbs, shiftedM) // Write shifted M back to memory
+
+	// ORA operation with A
+	c.A = c.A | shiftedM
+	c.setFlag('Z', c.A == 0)
+	c.setFlag('N', c.A&0x80 != 0)
+
+	// SLO does not affect V flag.
+	return 0 // Extra cycles handled by lookup
 }
 
 func (c *CPU) las() byte {
