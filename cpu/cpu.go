@@ -140,6 +140,7 @@ func (c *CPU) pop() byte {
 // createLookupTable creates and returns the 6502 instruction lookup table.
 func (c *CPU) createLookupTable() [256]Instruction {
 	lookup := [256]Instruction{
+		0x00: {"BRK", c.brk, c.imp, "imp", 7}, // BRK (software interrupt)
 		// LDA
 		0xA9: {"LDA", c.lda, c.imm, "imm", 2},
 		0xA5: {"LDA", c.lda, c.zp0, "zp0", 3},
@@ -1065,7 +1066,7 @@ func (c *CPU) brk() byte {
 	c.push(byte(c.PC & 0x00FF))
 
 	// Push P with B and U flags set
-	c.push(c.P | B | U)
+	c.push(pushedP)
 
 	c.setFlag('I', true) // Set Interrupt Disable flag
 
