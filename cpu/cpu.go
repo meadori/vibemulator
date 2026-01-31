@@ -662,12 +662,13 @@ func (c *CPU) las() byte {
 }
 
 // Unofficial ATX (OAL/AXA)
-// (A AND M) -> A, (A) -> X
+// X = (A OR 0xEE) AND M
 func (c *CPU) atx() byte {
 	c.fetch() // c.fetched will contain M (the immediate operand)
-	val := c.A & c.fetched // A = A AND M
-	c.A = val
-	c.X = val             // X = A (result of A AND M)
+	val := (c.A | 0xEE) & c.fetched // Calculate (A OR 0xEE) AND M
+	c.X = val                       // Store result in X
+	// A is unchanged according to this interpretation.
+
 	c.setFlag('Z', val == 0)
 	c.setFlag('N', val&0x80 != 0)
 	return 0
