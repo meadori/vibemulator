@@ -1066,7 +1066,7 @@ func (c *CPU) brk() byte {
 	c.push(byte(c.PC & 0x00FF))
 
 	// Push P with B and U flags set
-	c.push(pushedP)
+	c.push(c.P | B | U)
 
 	c.setFlag('I', true) // Set Interrupt Disable flag
 
