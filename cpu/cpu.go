@@ -256,14 +256,14 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0xF3: {"ISC", c.isc, c.izy, "izy", 8},
 
 		// Unofficial NOPs (DOP - Double OPeration, immediate)
-		0x04: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
-		0x14: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
-		0x34: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
-		0x44: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
-		0x54: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
-		0x74: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
-		0xD4: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
-		0xF4: {"DOP", c.nop, c.imm, "imm", 3}, // Already present from previous fix
+		0x04: {"DOP", c.nop, c.zp0, "zp0", 3},
+		0x14: {"DOP", c.nop, c.zpx, "zpx", 4},
+		0x34: {"DOP", c.nop, c.zpx, "zpx", 4},
+		0x44: {"DOP", c.nop, c.zp0, "zp0", 3},
+		0x54: {"DOP", c.nop, c.zpx, "zpx", 4},
+		0x74: {"DOP", c.nop, c.zpx, "zpx", 4},
+		0xD4: {"DOP", c.nop, c.zpx, "zpx", 4},
+		0xF4: {"DOP", c.nop, c.zpx, "zpx", 4},
 		0x80: {"DOP", c.nop, c.imm, "imm", 3},
 		0x82: {"DOP", c.nop, c.imm, "imm", 3},
 		0x89: {"DOP", c.nop, c.imm, "imm", 3},
