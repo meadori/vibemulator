@@ -52,6 +52,10 @@ func main() {
 
 	d := display.New(b)
 	logDebug("Display created.")
+
+	ebiten.SetWindowSize(display.ScaledWidth(), display.ScaledHeight())
+	ebiten.SetWindowTitle("Vibemulator")
+
 	logDebug("Starting Ebiten game loop...")
 	if err := ebiten.RunGame(d); err != nil {
 		log.Fatal(err)

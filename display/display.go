@@ -14,12 +14,12 @@ import (
 )
 
 const (
-	sampleRate = 44100
-
+	sampleRate      = 44100
+	scalingFactor   = 1.5
 	bezelWidth       = 1024
 	bezelHeight      = 1024
-	gameScreenX      = 312
-	gameScreenY      = 314
+	gameScreenX      = 310
+	gameScreenY      = 322
 	gameScreenWidth  = 423
 	gameScreenHeight = 396
 )
@@ -96,24 +96,40 @@ func (d *Display) Update() error {
 // Draw draws the game screen.
 // Draw is called every frame (typically 1/60[s] for 60Hz display).
 func (d *Display) Draw(screen *ebiten.Image) {
-	// Draw the bezel first
-	screen.DrawImage(d.bezelImage, nil)
+	// Draw the bezel first, scaled
+	opBezel := &ebiten.DrawImageOptions{}
+	opBezel.GeoM.Scale(scalingFactor, scalingFactor)
+	screen.DrawImage(d.bezelImage, opBezel)
 
 	// Draw the game screen onto the bezel
 	gameScreen := ebiten.NewImageFromImage(d.bus.PPU.GetFrame())
-	op := &ebiten.DrawImageOptions{}
+	opGame := &ebiten.DrawImageOptions{}
 
-	// Calculate scaling factors
-	scaleX := float64(gameScreenWidth) / float64(gameScreen.Bounds().Dx())
-	scaleY := float64(gameScreenHeight) / float64(gameScreen.Bounds().Dy())
-	op.GeoM.Scale(scaleX, scaleY)
+	// Scale the game screen to its target size within the bezel
+	gameScaleX := float64(gameScreenWidth) / float64(gameScreen.Bounds().Dx())
+	gameScaleY := float64(gameScreenHeight) / float64(gameScreen.Bounds().Dy())
 
-	op.GeoM.Translate(gameScreenX, gameScreenY)
-	screen.DrawImage(gameScreen, op)
+	// Apply the main scaling factor to everything
+	finalScaleX := gameScaleX * scalingFactor
+	finalScaleY := gameScaleY * scalingFactor
+	opGame.GeoM.Scale(finalScaleX, finalScaleY)
+
+	// Apply the scaled translation
+	opGame.GeoM.Translate(gameScreenX*scalingFactor, gameScreenY*scalingFactor)
+
+	screen.DrawImage(gameScreen, opGame)
 }
 
 // Layout takes the outside size (e.g., the window size) and returns the (logical) screen size.
 // If you don't have to adjust the screen size with the outside size, just return a fixed size.
 func (d *Display) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return bezelWidth, bezelHeight
+	return int(bezelWidth * scalingFactor), int(bezelHeight * scalingFactor)
+}
+
+func ScaledWidth() int {
+	return int(bezelWidth * scalingFactor)
+}
+
+func ScaledHeight() int {
+	return int(bezelHeight * scalingFactor)
 }
