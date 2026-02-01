@@ -51,6 +51,9 @@ type PPU struct {
 	spriteScanline []spriteInfo
 	spriteZeroHit  bool
 	spriteZero     bool
+	spriteEvalCycle int
+	sprite0InScanline bool
+	spriteCount       byte
 }
 
 type spriteInfo struct {
@@ -72,6 +75,12 @@ func (p *PPU) Reset() {
 	p.oamAddr = 0x00
 	p.FrameCounter = 0
 	p.NMI = false
+
+	p.spriteEvalCycle = 0
+	p.sprite0InScanline = false
+	p.spriteScanline = p.spriteScanline[:0] // Clear the secondary OAM
+
+	p.spriteCount = 0
 
 	p.bgPatternShifterLo = 0x0000
 	p.bgPatternShifterHi = 0x0000
@@ -119,21 +128,20 @@ func (p *PPU) ConnectCartridge(cart *cartridge.Cartridge) {
 
 // Clock performs one PPU clock cycle.
 func (p *PPU) Clock() {
-	// --- NEW LOGIC: Priming shifters at the start of each scanline ---
-	// This ensures shifters are loaded with prefetched data before pixel rendering begins for the scanline.
-	// This happens when Cycle transitions from 340 to 0.
-	if p.Cycle == 0 && (p.Scanline >= -1 && p.Scanline < 240) { // Condition includes pre-render scanline.
-		if (p.Mask & 0x08) != 0 { // Only prime if background rendering is enabled
-			p.loadBGShifters()
-		}
+	renderingEnabled := (p.Mask & 0x08) != 0 || (p.Mask & 0x10) != 0 // Check if background or sprites are enabled
+
+	if p.Scanline == -1 && p.Cycle == 339 && renderingEnabled && p.FrameCounter%2 == 1 {
+		// On odd frames, last cycle of pre-render scanline (339, 1-indexed) is skipped if rendering is enabled.
+		// This means we immediately advance to the next scanline/frame without processing cycle 340.
+		p.Cycle = 0
+		p.Scanline = 0 // Wrap to scanline 0, cycle 0
+		p.FrameCounter++
+		return // Skip rest of Clock() function for this "skipped" cycle
 	}
 	// --- END NEW LOGIC ---
 
 	if p.Scanline >= -1 && p.Scanline < 240 {
-		if p.Scanline == 0 && p.Cycle == 0 {
-			// Odd frame cycle skip
-			p.Cycle = 1
-		}
+		// Original incorrect odd frame cycle skip removed.
 
 		if p.Scanline == -1 && p.Cycle == 1 {
 			p.Status &= 0x1F
@@ -172,14 +180,57 @@ func (p *PPU) Clock() {
 			p.transferAddressX()
 		}
 
-		// Sprite evaluation
-		if p.Cycle == 257 && p.Scanline >= 0 {
-			p.evaluateSprites()
+		// Sprite evaluation initialization (occurs at cycle 257 for all renderable scanlines)
+		if p.Cycle == 257 && p.Scanline >= -1 && p.Scanline < 240 {
+			// Clear secondary OAM (p.spriteScanline)
+			p.spriteScanline = p.spriteScanline[:0]
+			p.spriteCount = 0
+			p.sprite0InScanline = false
+			p.oamAddr = 0 // OAMADDR is set to 0 at dot 257 of each scanline if rendering is enabled.
+			p.Status &= 0xDF // Clear Sprite Overflow flag ($2002 bit 5)
 		}
 
-		if p.Cycle > 257 && p.Cycle < 321 && p.Scanline == -1 {
-			p.oamAddr = 0
+		// Cycle-accurate sprite evaluation will be implemented here.
+
+		if p.Cycle >= 257 && p.Cycle <= 320 && p.Scanline >= -1 && p.Scanline < 240 {
+			oamIndex := (p.Cycle - 257) * 4 // current sprite in OAM to evaluate (0 to 63)
+			if oamIndex < 256 { // Ensure we don't go out of bounds for OAM (256 bytes)
+				y := p.oam[oamIndex]
+				id := p.oam[oamIndex+1]
+				attr := p.oam[oamIndex+2]
+				x := p.oam[oamIndex+3]
+
+				spriteHeight := byte(8)
+				if (p.Ctrl & 0x08) != 0 { // PPUCTRL bit 5 for 8x16 sprites
+					spriteHeight = 16
+				}
+
+				// Check if sprite is visible on the *next* scanline (p.Scanline + 1)
+				// The +1 is because sprite Y coordinate is top-most scanline of sprite - 1
+				if (p.Scanline+1) >= int(y) && (p.Scanline+1) < int(y)+int(spriteHeight) {
+					if p.spriteCount < 8 {
+						p.spriteScanline = append(p.spriteScanline, spriteInfo{
+							y:    y,
+							id:   id,
+							attr: attr,
+							x:    x,
+						})
+						if oamIndex == 0 { // Check if sprite 0 is found (first entry in primary OAM)
+							p.sprite0InScanline = true
+						}
+					}
+					// Increment spriteCount regardless of whether it was added to spriteScanline
+					p.spriteCount++
+					if p.spriteCount > 8 { // Set Sprite Overflow flag immediately if 9th sprite is found
+						p.Status |= 0x20
+					}
+				}
+			}
 		}
+
+
+
+
 
 		if p.Scanline == -1 && p.Cycle >= 280 && p.Cycle < 305 {
 			p.transferAddressY()
@@ -364,15 +415,16 @@ func (p *PPU) DoOAMDMA(data [256]byte) {
 func (p *PPU) loadBGShifters() {
 	p.bgPatternShifterLo = (p.bgPatternShifterLo & 0x00FF) | (uint16(p.bgNextTileLSB) << 8)
 	p.bgPatternShifterHi = (p.bgPatternShifterHi & 0x00FF) | (uint16(p.bgNextTileMSB) << 8)
+
 	if (p.bgNextTileAttrib & 0x01) != 0 {
-		p.bgAttribShifterLo = 0xFFFF
+		p.bgAttribShifterLo = (p.bgAttribShifterLo & 0x00FF) | 0xFF00
 	} else {
-		p.bgAttribShifterLo = 0x0000
+		p.bgAttribShifterLo = (p.bgAttribShifterLo & 0x00FF) | 0x0000
 	}
 	if (p.bgNextTileAttrib & 0x02) != 0 {
-		p.bgAttribShifterHi = 0xFFFF
+		p.bgAttribShifterHi = (p.bgAttribShifterHi & 0x00FF) | 0xFF00
 	} else {
-		p.bgAttribShifterHi = 0x0000
+		p.bgAttribShifterHi = (p.bgAttribShifterHi & 0x00FF) | 0x0000
 	}
 }
 
@@ -406,7 +458,7 @@ func (p *PPU) incrementScrollY() {
 			y := (p.vramAddr & 0x03E0) >> 5
 			if y == 29 {
 				y = 0
-				p.vramAddr ^= 0x0800
+				p.vramAddr ^= 0x0800 // switch nametable Y
 			} else if y == 31 {
 				y = 0
 			} else {
@@ -429,28 +481,7 @@ func (p *PPU) transferAddressY() {
 	}
 }
 
-// Sprite evaluation
-func (p *PPU) evaluateSprites() {
-	p.spriteScanline = p.spriteScanline[:0]
-	var count byte = 0
-	for i := 0; i < 64; i++ {
-		y := p.oam[i*4]
-		if p.Scanline >= int(y) && p.Scanline < int(y)+8 {
-			if count < 8 {
-				p.spriteScanline = append(p.spriteScanline, spriteInfo{
-					y:    y,
-					id:   p.oam[i*4+1],
-					attr: p.oam[i*4+2],
-					x:    p.oam[i*4+3],
-				})
-			}
-			count++
-		}
-	}
-	if count > 8 {
-		p.Status |= 0x20
-	}
-}
+
 
 func (p *PPU) renderPixel() {
 
@@ -488,12 +519,10 @@ func (p *PPU) renderPixel() {
 	var spPalette byte
 	var spPriority bool
 	if (p.Mask & 0x10) != 0 {
-		p.spriteZero = false
+		// p.spriteZero = false // This flag was for tracking if *this* pixel is sprite 0. Removed.
 		for i := 0; i < len(p.spriteScanline); i++ {
 			if p.Cycle-1 >= int(p.spriteScanline[i].x) && p.Cycle-1 < int(p.spriteScanline[i].x)+8 {
-				if i == 0 {
-					p.spriteZero = true
-				}
+				// No longer setting p.spriteZero here. p.sprite0InScanline is set during evaluation.
 				spritePatternAddrLo := uint16(p.Ctrl&0x20)*0x1000 + uint16(p.spriteScanline[i].id)*16 + (uint16(p.Scanline) - uint16(p.spriteScanline[i].y))
 				if p.spriteScanline[i].attr&0x80 != 0 {
 					spritePatternAddrLo = uint16(p.Ctrl&0x20)*0x1000 + uint16(p.spriteScanline[i].id)*16 + (7 - (uint16(p.Scanline) - uint16(p.spriteScanline[i].y)))
@@ -534,7 +563,7 @@ func (p *PPU) renderPixel() {
 			finalPixel = bgPixel
 			finalPalette = bgPalette
 		}
-		if p.spriteZero && p.spriteZeroHit == false && p.Cycle < 255 {
+		if p.sprite0InScanline && p.spriteZeroHit == false && p.Cycle < 255 {
 			p.spriteZeroHit = true
 		}
 	} else if bgPixel == 0 && spPixel != 0 {
