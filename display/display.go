@@ -22,9 +22,11 @@ func New(b *bus.Bus) *Display {
 // Update proceeds the game state.
 // Update is called every tick (1/60 [s] by default).
 func (d *Display) Update() error {
-	// The NES CPU runs at 1.79 MHz, and the PPU runs at 3x that speed.
-	// For a 60 FPS frame rate, we have approximately 29,780 PPU cycles per frame.
-	for i := 0; i < 29780; i++ {
+	// The PPU runs at 5.37 MHz, and the CPU runs at 1.79 MHz (1/3 of PPU).
+	// A full NTSC frame consists of 262 scanlines, each taking 341 PPU cycles.
+	// Total PPU cycles per frame = 262 * 341 = 89342.
+	// The bus.Clock() function clocks the PPU, and the CPU every 3rd PPU clock.
+	for i := 0; i < 89342; i++ {
 		d.bus.Clock()
 	}
 	return nil
