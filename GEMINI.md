@@ -50,6 +50,12 @@ A `Makefile` is used to automate common development tasks such as building, runn
 ## Dependency Management
 Go modules (`go.mod`, `go.sum`) are used for dependency management. Dependencies are automatically downloaded by `make build` or `make test`.
 
+## Commit Guidelines
+When contributing, please ensure your changes adhere to the following principles:
+*   **Atomic Commits:** Each commit should focus on a single logical change or feature. This makes code reviews easier and simplifies reverting changes if necessary.
+*   **Accompanying Tests:** All new features or bug fixes must include corresponding tests to ensure correctness and prevent regressions.
+*   **Commit When Done:** Commits should only be made once the implementation is complete and all associated tests pass.
+
 # Directory Structure
 
 The project is organized into several packages, each responsible for a specific component of the NES emulation:
