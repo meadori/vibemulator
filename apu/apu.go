@@ -17,6 +17,10 @@ var triangleWaveform = [32]byte{
 	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
 }
 
+var noiseTimerTable = [16]uint16{
+	4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068,
+}
+
 // PulseChannel represents a single pulse wave channel.
 type PulseChannel struct {
 	enabled bool
@@ -64,11 +68,36 @@ type TriangleChannel struct {
 	linearCounterReloadFlag bool
 }
 
+// NoiseChannel represents the noise channel.
+type NoiseChannel struct {
+	enabled bool
+
+	lengthCounterHalt bool
+	constantVolume    bool
+	volume            byte
+
+	mode        bool
+	timerPeriod byte
+
+	lengthCounter byte
+	shiftRegister uint16
+
+	// Internal state
+	timerCounter uint16
+
+	// Envelope state
+	envelopeStartFlag bool
+	envelopeVolume    byte
+	envelopeDivider   byte
+	envelopeCounter   byte
+}
+
 // APU represents the Audio Processing Unit.
 type APU struct {
 	pulse1   *PulseChannel
 	pulse2   *PulseChannel
 	triangle *TriangleChannel
+	noise    *NoiseChannel
 	cycle    uint64
 
 	frameCounter      uint64
@@ -84,14 +113,17 @@ type APU struct {
 
 // New creates a new APU instance.
 func New() *APU {
-	return &APU{
+	apu := &APU{
 		pulse1:       &PulseChannel{},
 		pulse2:       &PulseChannel{},
 		triangle:     &TriangleChannel{},
+		noise:        &NoiseChannel{},
 		sampleRate:   44100.0,
 		cpuClockRate: 1789773.0,
 		sampleBuffer: make([]float32, 0, 4096),
 	}
+	apu.noise.shiftRegister = 1
+	return apu
 }
 
 // ReadSamples reads generated samples into a byte buffer.
@@ -124,20 +156,22 @@ func (a *APU) output() float32 {
 	p1 := a.pulse1.output()
 	p2 := a.pulse2.output()
 	t := a.triangle.output()
+	n := a.noise.output()
 
 	// Approximation of NES mixing levels
 	pulseOut := 0.00752 * float32(p1+p2)
-	tndOut := 0.00851*float32(t) + 0.00494*float32(0) + 0.00335*float32(0) // Noise and DMC are zero for now
+	tndOut := 0.00851*float32(t) + 0.00494*float32(n) + 0.00335*float32(0) // DMC is zero for now
 
 	return pulseOut + tndOut
 }
 
 // Clock performs one APU clock cycle.
 func (a *APU) Clock() {
-	// The pulse and triangle channels are clocked every CPU clock cycle.
+	// The pulse, triangle, and noise channels are clocked every CPU clock cycle.
 	a.pulse1.Clock()
 	a.pulse2.Clock()
 	a.triangle.Clock()
+	a.noise.Clock()
 
 	// The frame counter is clocked at half the CPU speed.
 	if a.cycle%2 == 0 {
@@ -195,7 +229,7 @@ func (a *APU) clockEnvelopesAndLinearCounter() {
 	a.pulse1.clockEnvelope()
 	a.pulse2.clockEnvelope()
 	a.triangle.clockLinear()
-	// TODO: Add other channels
+	a.noise.clockEnvelope()
 }
 
 func (a *APU) clockLengthAndSweeps() {
@@ -204,7 +238,7 @@ func (a *APU) clockLengthAndSweeps() {
 	a.pulse2.clockLength()
 	a.pulse2.clockSweep()
 	a.triangle.clockLength()
-	// TODO: Add other channels
+	a.noise.clockLength()
 }
 
 func (p *PulseChannel) clockLength() {
@@ -216,6 +250,12 @@ func (p *PulseChannel) clockLength() {
 func (t *TriangleChannel) clockLength() {
 	if !t.lengthCounterHalt && t.lengthCounter > 0 {
 		t.lengthCounter--
+	}
+}
+
+func (n *NoiseChannel) clockLength() {
+	if !n.lengthCounterHalt && n.lengthCounter > 0 {
+		n.lengthCounter--
 	}
 }
 
@@ -274,6 +314,23 @@ func (p *PulseChannel) clockEnvelope() {
 	}
 }
 
+func (n *NoiseChannel) clockEnvelope() {
+	if n.envelopeStartFlag {
+		n.envelopeStartFlag = false
+		n.envelopeCounter = 15
+		n.envelopeDivider = n.volume
+	} else if n.envelopeDivider > 0 {
+		n.envelopeDivider--
+	} else {
+		n.envelopeDivider = n.volume
+		if n.envelopeCounter > 0 {
+			n.envelopeCounter--
+		} else if n.lengthCounterHalt { // Loop enabled
+			n.envelopeCounter = 15
+		}
+	}
+}
+
 func (p *PulseChannel) Clock() {
 	if p.timerCounter > 0 {
 		p.timerCounter--
@@ -294,6 +351,24 @@ func (t *TriangleChannel) Clock() {
 	}
 }
 
+func (n *NoiseChannel) Clock() {
+	if n.timerCounter > 0 {
+		n.timerCounter--
+	} else {
+		n.timerCounter = noiseTimerTable[n.timerPeriod]
+		
+		var feedbackBit uint16
+		if n.mode { // Mode 1
+			feedbackBit = ((n.shiftRegister >> 6) & 1) ^ (n.shiftRegister & 1)
+		} else { // Mode 0
+			feedbackBit = ((n.shiftRegister >> 1) & 1) ^ (n.shiftRegister & 1)
+		}
+		n.shiftRegister >>= 1
+		n.shiftRegister |= (feedbackBit << 14)
+	}
+}
+
+
 // SetEnabled enables or disables the channel.
 func (p *PulseChannel) SetEnabled(enabled bool) {
 	p.enabled = enabled
@@ -306,6 +381,13 @@ func (t *TriangleChannel) SetEnabled(enabled bool) {
 	t.enabled = enabled
 	if !enabled {
 		t.lengthCounter = 0
+	}
+}
+
+func (n *NoiseChannel) SetEnabled(enabled bool) {
+	n.enabled = enabled
+	if !enabled {
+		n.lengthCounter = 0
 	}
 }
 
@@ -344,6 +426,23 @@ func (t *TriangleChannel) output() byte {
 	return triangleWaveform[t.dutySequencer]
 }
 
+func (n *NoiseChannel) output() byte {
+	if !n.enabled {
+		return 0
+	}
+	if n.lengthCounter == 0 {
+		return 0
+	}
+	// If bit 0 of the shift register is set, the volume is 0
+	if (n.shiftRegister & 1) == 1 {
+		return 0
+	}
+	if n.constantVolume {
+		return n.volume
+	}
+	return n.envelopeCounter
+}
+
 // CPURead handles CPU reads from the APU's registers.
 func (a *APU) CPURead(addr uint16) byte {
 	var data byte
@@ -360,10 +459,13 @@ func (a *APU) CPUWrite(addr uint16, data byte) {
 		a.pulse2.cpuWrite(addr&0x0003, data) // Use bitwise AND for offset
 	case addr >= 0x4008 && addr <= 0x400B:
 		a.triangle.cpuWrite(addr, data)
+	case addr >= 0x400C && addr <= 0x400F:
+		a.noise.cpuWrite(addr, data)
 	case addr == 0x4015: // Status register
 		a.pulse1.SetEnabled(data&0x01 == 1)
 		a.pulse2.SetEnabled(data&0x02 == 1)
 		a.triangle.SetEnabled(data&0x04 == 1)
+		a.noise.SetEnabled(data&0x08 == 1)
 		// TODO: Add other channels
 	case addr == 0x4017: // Frame Counter
 		a.sequenceMode = (data >> 7) & 1
@@ -413,5 +515,23 @@ func (t *TriangleChannel) cpuWrite(addr uint16, data byte) {
 		t.timer = (t.timer & 0x00FF) | (uint16(data&0x07) << 8)
 		t.lengthCounter = lengthCounterTable[(data>>3)&0x1F]
 		t.linearCounterReloadFlag = true
+	}
+}
+
+func (n *NoiseChannel) cpuWrite(addr uint16, data byte) {
+	switch addr {
+	case 0x400C:
+		n.lengthCounterHalt = (data>>5)&1 == 1
+		n.constantVolume = (data>>4)&1 == 1
+		n.volume = data & 0x0F
+		n.envelopeStartFlag = true
+	case 0x400D:
+		// Unused
+	case 0x400E:
+		n.mode = (data>>7)&1 == 1
+		n.timerPeriod = data & 0x0F
+	case 0x400F:
+		n.lengthCounter = lengthCounterTable[(data>>3)&0x1F]
+		n.envelopeStartFlag = true
 	}
 }
