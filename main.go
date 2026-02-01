@@ -10,9 +10,7 @@ import (
 
 	"github.com/meadori/vibemulator/bus"
 	"github.com/meadori/vibemulator/cartridge"
-	"github.com/meadori/vibemulator/cpu"
 	"github.com/meadori/vibemulator/display"
-	"github.com/meadori/vibemulator/ppu"
 )
 
 var (
@@ -28,14 +26,6 @@ func logDebug(format string, a ...interface{}) {
 
 func main() {
 	flag.Parse() // Parse command-line flags
-
-	// Pass the logDebug function to other packages
-	display.LogDebug = logDebug
-	bus.LogDebug = logDebug
-	cartridge.LogDebug = logDebug
-	cpu.LogDebug = logDebug
-	ppu.LogDebug = logDebug
-
 
 	if len(flag.Args()) != 1 { // flag.Args() returns non-flag arguments
 		fmt.Println("Usage: vibemulator [-debug] <rom_file>")

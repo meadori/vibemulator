@@ -3,6 +3,7 @@ package bus
 import (
 	"log"
 
+	"github.com/meadori/vibemulator/apu"
 	"github.com/meadori/vibemulator/cartridge"
 	"github.com/meadori/vibemulator/controller"
 	"github.com/meadori/vibemulator/cpu"
@@ -16,6 +17,7 @@ var LogDebug func(format string, a ...interface{})
 type Bus struct {
 	cpu  *cpu.CPU
 	PPU  *ppu.PPU
+	APU  *apu.APU
 	ram  [2048]byte
 	cart *cartridge.Cartridge
 	joy1 *controller.Controller
@@ -32,6 +34,7 @@ func New() *Bus {
 	b := &Bus{
 		cpu:  cpu.New(),
 		PPU:  ppu.New(),
+		APU:  apu.New(),
 		joy1: controller.New(),
 		joy2: controller.New(),
 	}
@@ -60,6 +63,7 @@ func (b *Bus) Clock() {
 			b.cpu.NMI()
 		}
 		b.cpu.Clock()
+		b.APU.Clock()
 	}
 
 	b.SystemClocks++
@@ -82,7 +86,7 @@ func (b *Bus) Read(addr uint16) byte {
 	case addr == 0x4017:
 		data = b.joy2.Read()
 	case addr >= 0x4000 && addr <= 0x4017:
-		// APU and I/O registers
+		// data = b.apu.CPURead(addr) // To be implemented
 	}
 	return data
 }
@@ -110,12 +114,11 @@ func (b *Bus) Write(addr uint16, data byte) {
 		b.joy1.Write(data)
 		b.joy2.Write(data)
 	case addr >= 0x4000 && addr <= 0x4017:
-			// APU and I/O registers
-			}
-		}
-		
-		// SetController1State sets the state of the buttons for controller 1.
-		func (b *Bus) SetController1State(buttons [8]bool) {
-			b.joy1.SetButtons(buttons)
-		}
-		
+		b.APU.CPUWrite(addr, data)
+	}
+}
+
+// SetController1State sets the state of the buttons for controller 1.
+func (b *Bus) SetController1State(buttons [8]bool) {
+	b.joy1.SetButtons(buttons)
+}
