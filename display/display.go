@@ -18,7 +18,7 @@ const (
 	scalingFactor   = 1.5
 	bezelWidth       = 1024
 	bezelHeight      = 1024
-	gameScreenX      = 310
+	gameScreenX      = 318
 	gameScreenY      = 322
 	gameScreenWidth  = 423
 	gameScreenHeight = 396
