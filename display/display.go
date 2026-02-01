@@ -1,7 +1,11 @@
 package display
 
 import (
+	"bytes"
+	"image"
+	_ "image/png" // Required for PNG decoding
 	"log"
+	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/audio"
@@ -11,6 +15,13 @@ import (
 
 const (
 	sampleRate = 44100
+
+	bezelWidth       = 1024
+	bezelHeight      = 1024
+	gameScreenX      = 312
+	gameScreenY      = 314
+	gameScreenWidth  = 423
+	gameScreenHeight = 396
 )
 
 type soundStream struct {
@@ -25,6 +36,7 @@ func (s *soundStream) Read(p []byte) (n int, err error) {
 type Display struct {
 	bus         *bus.Bus
 	audioPlayer *audio.Player
+	bezelImage  *ebiten.Image
 }
 
 // New creates a new Display instance.
@@ -38,7 +50,23 @@ func New(b *bus.Bus) *Display {
 		player.Play()
 	}
 
-	return &Display{bus: b, audioPlayer: player}
+	// Load the bezel image
+	bezelFile, err := os.ReadFile("display/assets/tv-bezel.png")
+	if err != nil {
+		log.Fatalf("Error reading bezel image: %v", err)
+	}
+
+	img, _, err := image.Decode(bytes.NewReader(bezelFile))
+	if err != nil {
+		log.Fatalf("Error decoding bezel image: %v", err)
+	}
+	bezelImage := ebiten.NewImageFromImage(img)
+
+	return &Display{
+		bus:         b,
+		audioPlayer: player,
+		bezelImage:  bezelImage,
+	}
 }
 
 // Update proceeds the game state.
@@ -68,11 +96,24 @@ func (d *Display) Update() error {
 // Draw draws the game screen.
 // Draw is called every frame (typically 1/60[s] for 60Hz display).
 func (d *Display) Draw(screen *ebiten.Image) {
-	screen.WritePixels(d.bus.PPU.GetFrame().Pix)
+	// Draw the bezel first
+	screen.DrawImage(d.bezelImage, nil)
+
+	// Draw the game screen onto the bezel
+	gameScreen := ebiten.NewImageFromImage(d.bus.PPU.GetFrame())
+	op := &ebiten.DrawImageOptions{}
+
+	// Calculate scaling factors
+	scaleX := float64(gameScreenWidth) / float64(gameScreen.Bounds().Dx())
+	scaleY := float64(gameScreenHeight) / float64(gameScreen.Bounds().Dy())
+	op.GeoM.Scale(scaleX, scaleY)
+
+	op.GeoM.Translate(gameScreenX, gameScreenY)
+	screen.DrawImage(gameScreen, op)
 }
 
 // Layout takes the outside size (e.g., the window size) and returns the (logical) screen size.
 // If you don't have to adjust the screen size with the outside size, just return a fixed size.
 func (d *Display) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return 256, 240
+	return bezelWidth, bezelHeight
 }
