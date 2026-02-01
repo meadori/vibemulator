@@ -99,6 +99,32 @@ func (c *CPU) NMI() {
 	c.Cycles = 8 // Updated
 }
 
+// IRQ is a maskable interrupt.
+func (c *CPU) IRQ() {
+	// IRQ is ignored if Interrupt Disable flag (I) is set.
+	if c.getFlag('I') == 0 {
+		// Push PC to stack
+		c.push(byte((c.PC >> 8) & 0x00FF))
+		c.push(byte(c.PC & 0x00FF))
+
+		// Push P to stack with B (Break) flag cleared and U (Unused) flag set
+		c.setFlag('B', false) // B flag should be 0 for IRQ
+		c.setFlag('U', true)  // U flag should be 1
+		c.push(c.P)
+
+		// Set Interrupt Disable flag
+		c.setFlag('I', true)
+
+		// Load PC from IRQ vector
+		c.addrAbs = 0xFFFE
+		lo := uint16(c.bus.Read(c.addrAbs))
+		hi := uint16(c.bus.Read(c.addrAbs + 1))
+		c.PC = (hi << 8) | lo
+
+		c.Cycles = 7 // IRQ takes 7 cycles
+	}
+}
+
 // LogState prints the current CPU state in a nestest-like format.
 func (c *CPU) LogState() string {
 	// PPU cycle count and total cycles are omitted for now as they are not directly available in CPU struct.

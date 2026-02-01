@@ -59,12 +59,20 @@ func (b *Bus) Clock() {
 	b.PPU.Clock()
 	// The CPU runs at 1/3 the speed of the PPU
 	if b.SystemClocks%3 == 0 {
+		// Clock APU first to ensure IRQ status is updated for current CPU cycle
+		b.APU.Clock()
+
+		// Check for NMI (PPU)
 		if b.PPU.NMI {
 			b.PPU.NMI = false
 			b.cpu.NMI()
 		}
-		b.cpu.Clock()
-		b.APU.Clock()
+
+		// Check for APU IRQ (DMC and later Frame IRQ)
+		        if b.APU.DmcIRQ { // Assuming this is the only APU IRQ for now            b.cpu.IRQ()
+		}
+
+		b.cpu.Clock() // Clock the CPU after all IRQ checks
 	}
 
 	b.SystemClocks++
@@ -87,7 +95,7 @@ func (b *Bus) Read(addr uint16) byte {
 	case addr == 0x4017:
 		data = b.joy2.Read()
 	case addr >= 0x4000 && addr <= 0x4017:
-		// data = b.apu.CPURead(addr) // To be implemented
+		data = b.APU.CPURead(addr)
 	}
 	return data
 }

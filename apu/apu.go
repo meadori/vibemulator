@@ -119,6 +119,7 @@ type DMCChannel struct {
 	sampleBuffer    byte
 	sampleBufferEmpty bool
 
+	irqPending bool // New field to signal IRQ
 	bus BusReader // Interface to read from the bus
 }
 
@@ -136,6 +137,7 @@ type APU struct {
 	frameSequenceStep byte
 	sequenceMode      byte // 0 for 4-step, 1 for 5-step
 	irqInhibit        bool
+	DmcIRQ bool // DMC Interrupt Flag
 
 	sampleRate       float64
 	cpuClockRate     float64
@@ -159,7 +161,7 @@ func New() *APU {
 		dmc:          &DMCChannel{},
 		sampleRate:   44100.0,
 		cpuClockRate: 1789773.0,
-		sampleBuffer: make([]float32, 0, 4096),
+		sampleBuffer: make([]float32, 0, int(44100*2)), // Increased capacity for 2 seconds of audio
 	}
 	apu.noise.shiftRegister = 1
 	return apu
@@ -225,6 +227,10 @@ func (a *APU) Clock() {
 	a.noise.Clock()
 	a.dmc.Clock(a.bus)
 
+	// Check for DMC IRQ
+	    if a.dmc.irqPending {
+	        a.DmcIRQ = true
+	    }
 	// The frame counter is clocked at half the CPU speed.
 	if a.cycle%2 == 0 {
 		a.frameCounter++
@@ -439,6 +445,10 @@ func (d *DMCChannel) Clock(bus BusReader) {
 					if d.loop {
 						d.currentAddress = d.sampleAddress
 						d.bytesRemaining = d.sampleLength
+					} else { // Sample finished, generate IRQ if enabled
+						if d.irqEnabled {
+							d.irqPending = true // Set IRQ pending flag
+						}
 					}
 				}
 			}
@@ -558,7 +568,38 @@ func (d *DMCChannel) output() byte {
 // CPURead handles CPU reads from the APU's registers.
 func (a *APU) CPURead(addr uint16) byte {
 	var data byte
-	// Register read logic will go here.
+	switch addr {
+	case 0x4015: // Status register
+		// Bits 0-4: Length counter status for Pulse 1, Pulse 2, Triangle, Noise, DMC
+		if a.pulse1.lengthCounter > 0 {
+			data |= 0x01
+		}
+		if a.pulse2.lengthCounter > 0 {
+			data |= 0x02
+		}
+		if a.triangle.lengthCounter > 0 {
+			data |= 0x04
+		}
+		if a.noise.lengthCounter > 0 {
+			data |= 0x08
+		}
+		if a.dmc.bytesRemaining > 0 { // DMC status is bytes remaining, not length counter
+			data |= 0x10
+		}
+		// Bit 6: Frame Interrupt Flag (cleared on read)
+		// Bit 7: DMC Interrupt Flag (cleared on read)
+        if a.DmcIRQ {
+            data |= 0x80
+            a.DmcIRQ = false
+            a.dmc.irqPending = false
+        }
+        // Frame Interrupt Flag (bit 6) is cleared on read only if not inhibited
+        if !a.irqInhibit {
+            // TODO: Need a frame IRQ flag in APU struct
+            // For now, if we had a frame IRQ, we would clear it here.
+        }
+
+	}
 	return data
 }
 
@@ -581,6 +622,9 @@ func (a *APU) CPUWrite(addr uint16, data byte) {
 		a.triangle.SetEnabled(data&0x04 == 1)
 		a.noise.SetEnabled(data&0x08 == 1)
 		a.dmc.SetEnabled(data&0x10 == 1)
+        // Writing to $4015 clears the DMC IRQ flag
+        a.DmcIRQ = false
+        a.dmc.irqPending = false
 	case addr == 0x4017: // Frame Counter
 		a.sequenceMode = (data >> 7) & 1
 		a.irqInhibit = (data>>6)&1 == 1
