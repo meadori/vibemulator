@@ -22,6 +22,18 @@ func New(b *bus.Bus) *Display {
 // Update proceeds the game state.
 // Update is called every tick (1/60 [s] by default).
 func (d *Display) Update() error {
+	// Poll controller input
+	buttons := [8]bool{}
+	buttons[0] = ebiten.IsKeyPressed(ebiten.KeyZ)         // A
+	buttons[1] = ebiten.IsKeyPressed(ebiten.KeyX)         // B
+	buttons[2] = ebiten.IsKeyPressed(ebiten.KeyShift)     // Select
+	buttons[3] = ebiten.IsKeyPressed(ebiten.KeyEnter)     // Start
+	buttons[4] = ebiten.IsKeyPressed(ebiten.KeyArrowUp)   // Up
+	buttons[5] = ebiten.IsKeyPressed(ebiten.KeyArrowDown) // Down
+	buttons[6] = ebiten.IsKeyPressed(ebiten.KeyArrowLeft) // Left
+	buttons[7] = ebiten.IsKeyPressed(ebiten.KeyArrowRight)// Right
+	d.bus.SetController1State(buttons)
+
 	// The PPU runs at 5.37 MHz, and the CPU runs at 1.79 MHz (1/3 of PPU).
 	// A full NTSC frame consists of 262 scanlines, each taking 341 PPU cycles.
 	// Total PPU cycles per frame = 262 * 341 = 89342.

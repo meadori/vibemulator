@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/meadori/vibemulator/cartridge"
+	"github.com/meadori/vibemulator/controller"
 	"github.com/meadori/vibemulator/cpu"
 	"github.com/meadori/vibemulator/ppu"
 )
@@ -13,11 +14,12 @@ var LogDebug func(format string, a ...interface{})
 
 // Bus represents the main bus of the NES.
 type Bus struct {
-	cpu *cpu.CPU
-	PPU *ppu.PPU
-	ram [2048]byte
-
+	cpu  *cpu.CPU
+	PPU  *ppu.PPU
+	ram  [2048]byte
 	cart *cartridge.Cartridge
+	joy1 *controller.Controller
+	joy2 *controller.Controller
 
 	// SystemClocks keeps track of the total number of clock cycles.
 	SystemClocks int
@@ -28,8 +30,10 @@ func New() *Bus {
 	log.Println("Creating new bus")
 
 	b := &Bus{
-		cpu: cpu.New(),
-		PPU: ppu.New(),
+		cpu:  cpu.New(),
+		PPU:  ppu.New(),
+		joy1: controller.New(),
+		joy2: controller.New(),
 	}
 
 	b.cpu.ConnectBus(b)
@@ -73,6 +77,10 @@ func (b *Bus) Read(addr uint16) byte {
 		data = b.ram[addr&0x07FF]
 	case addr >= 0x2000 && addr <= 0x3FFF:
 		data = b.PPU.CPURead(addr & 0x0007)
+	case addr == 0x4016:
+		data = b.joy1.Read()
+	case addr == 0x4017:
+		data = b.joy2.Read()
 	case addr >= 0x4000 && addr <= 0x4017:
 		// APU and I/O registers
 	}
@@ -98,7 +106,16 @@ func (b *Bus) Write(addr uint16, data byte) {
 			oamData[i] = b.Read(dmaAddr + uint16(i))
 		}
 		b.PPU.DoOAMDMA(oamData)
+	case addr == 0x4016:
+		b.joy1.Write(data)
+		b.joy2.Write(data)
 	case addr >= 0x4000 && addr <= 0x4017:
-		// APU and I/O registers
-	}
-}
+			// APU and I/O registers
+			}
+		}
+		
+		// SetController1State sets the state of the buttons for controller 1.
+		func (b *Bus) SetController1State(buttons [8]bool) {
+			b.joy1.SetButtons(buttons)
+		}
+		
