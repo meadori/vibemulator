@@ -2,9 +2,7 @@ package main
 
 import (
 	"flag" // Import the flag package
-	"fmt"
 	"log"
-	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 
@@ -27,34 +25,38 @@ func logDebug(format string, a ...interface{}) {
 func main() {
 	flag.Parse() // Parse command-line flags
 
-	if len(flag.Args()) != 1 { // flag.Args() returns non-flag arguments
-		fmt.Println("Usage: vibemulator [-debug] <rom_file>")
-		os.Exit(1)
+	var romFilePath string
+	if len(flag.Args()) > 0 {
+		romFilePath = flag.Args()[0]
 	}
-	romFilePath := flag.Args()[0]
 
 	logDebug("Starting emulator...")
-	logDebug("ROM file: %s", romFilePath)
-
-	cart, err := cartridge.New(romFilePath)
-	if err != nil {
-		log.Fatalf("Error loading ROM: %v", err)
+	if romFilePath != "" {
+		logDebug("ROM file: %s", romFilePath)
 	}
-	logDebug("Cartridge loaded successfully.")
 
 	b := bus.New()
 	logDebug("Bus created.")
-	err = b.LoadCartridge(cart)
-	if err != nil {
-		log.Fatalf("Error loading cartridge into bus: %v", err)
+
+	if romFilePath != "" {
+		cart, err := cartridge.New(romFilePath)
+		if err != nil {
+			log.Fatalf("Error loading ROM: %v", err)
+		}
+		logDebug("Cartridge loaded successfully.")
+
+		err = b.LoadCartridge(cart)
+		if err != nil {
+			log.Fatalf("Error loading cartridge into bus: %v", err)
+		}
+		logDebug("Cartridge loaded into bus.")
 	}
-	logDebug("Cartridge loaded into bus.")
 
 	d := display.New(b)
 	logDebug("Display created.")
-
 	ebiten.SetWindowSize(display.ScaledWidth(), display.ScaledHeight())
 	ebiten.SetWindowTitle("Vibemulator")
+	ebiten.SetWindowResizable(true)
 
 	logDebug("Starting Ebiten game loop...")
 	if err := ebiten.RunGame(d); err != nil {

@@ -61,7 +61,9 @@ func (b *Bus) Clock() {
 	if b.SystemClocks%3 == 0 {
 		// Clock APU first to ensure IRQ status is updated for current CPU cycle
 		b.APU.Clock()
-		b.cart.Mapper.Clock()
+		if b.cart != nil {
+			b.cart.Mapper.Clock()
+		}
 		// Check for NMI (PPU)
 		if b.PPU.NMI {
 			b.PPU.NMI = false
@@ -81,8 +83,10 @@ func (b *Bus) Clock() {
 // Read reads a byte from the bus.
 func (b *Bus) Read(addr uint16) byte {
 	var data byte
-	if data, ok := b.cart.Mapper.CPUMapRead(addr); ok {
-		return data
+	if b.cart != nil {
+		if data, ok := b.cart.Mapper.CPUMapRead(addr); ok {
+			return data
+		}
 	}
 
 	switch {
@@ -102,8 +106,10 @@ func (b *Bus) Read(addr uint16) byte {
 
 // Write writes a byte to the bus.
 func (b *Bus) Write(addr uint16, data byte) {
-	if ok := b.cart.Mapper.CPUMapWrite(addr, data); ok {
-		return
+	if b.cart != nil {
+		if ok := b.cart.Mapper.CPUMapWrite(addr, data); ok {
+			return
+		}
 	}
 
 	switch {

@@ -128,6 +128,9 @@ func (p *PPU) ConnectCartridge(cart *cartridge.Cartridge) {
 
 // Clock performs one PPU clock cycle.
 func (p *PPU) Clock() {
+	if p.cart == nil {
+		return
+	}
 	renderingEnabled := (p.Mask & 0x08) != 0 || (p.Mask & 0x10) != 0 // Check if background or sprites are enabled
 
 	if p.Scanline == -1 && p.Cycle == 339 && renderingEnabled && p.FrameCounter%2 == 1 {
@@ -266,7 +269,9 @@ func (p *PPU) PPURead(addr uint16) byte {
 
 	switch {
 	case addr <= 0x1FFF:
-		data, _ = p.cart.Mapper.PPUMapRead(addr)
+		if p.cart != nil {
+			data, _ = p.cart.Mapper.PPUMapRead(addr)
+		}
 	case addr >= 0x2000 && addr <= 0x3EFF:
 		addr &= 0x0FFF
 		data = p.vram[p.getMirrorAddress(addr)]
@@ -296,7 +301,9 @@ func (p *PPU) PPUWrite(addr uint16, data byte) {
 
 	switch {
 	case addr <= 0x1FFF:
-		p.cart.Mapper.PPUMapWrite(addr, data)
+		if p.cart != nil {
+			p.cart.Mapper.PPUMapWrite(addr, data)
+		}
 	case addr >= 0x2000 && addr <= 0x3EFF:
 		addr &= 0x0FFF
 		p.vram[p.getMirrorAddress(addr)] = data

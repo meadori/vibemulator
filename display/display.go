@@ -2,13 +2,18 @@ package display
 
 import (
 	"bytes"
+	"github.com/meadori/vibemulator/cartridge"
+	"github.com/sqweek/dialog"
 	"image"
+	"image/color"
 	_ "image/png" // Required for PNG decoding
 	"log"
 	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/audio"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 
 	"github.com/meadori/vibemulator/bus"
 )
@@ -22,6 +27,7 @@ const (
 	gameScreenY      = 322
 	gameScreenWidth  = 423
 	gameScreenHeight = 396
+	menuBarHeight    = 20
 )
 
 type soundStream struct {
@@ -34,9 +40,10 @@ func (s *soundStream) Read(p []byte) (n int, err error) {
 
 // Display represents the emulator's display.
 type Display struct {
-	bus         *bus.Bus
-	audioPlayer *audio.Player
-	bezelImage  *ebiten.Image
+	bus            *bus.Bus
+	audioPlayer    *audio.Player
+	bezelImage     *ebiten.Image
+	menuBarVisible bool
 }
 
 // New creates a new Display instance.
@@ -69,9 +76,36 @@ func New(b *bus.Bus) *Display {
 	}
 }
 
+func (d *Display) loadROM(path string) {
+	cart, err := cartridge.New(path)
+	if err != nil {
+		log.Fatalf("Error loading ROM: %v", err)
+	}
+	d.bus.LoadCartridge(cart)
+}
+
 // Update proceeds the game state.
 // Update is called every tick (1/60 [s] by default).
 func (d *Display) Update() error {
+	d.menuBarVisible = true
+
+	// Handle menu clicks
+	if d.menuBarVisible && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		x, _ := ebiten.CursorPosition()
+		if x < 100 {
+			// Load ROM
+			filename, err := dialog.File().Load()
+			if err != nil {
+				log.Println(err)
+			} else {
+				d.loadROM(filename)
+			}
+		} else if x < 200 {
+			// Exit
+			os.Exit(0)
+		}
+	}
+
 	// Poll controller input
 	buttons := [8]bool{}
 	buttons[0] = ebiten.IsKeyPressed(ebiten.KeyZ)         // A
@@ -118,6 +152,20 @@ func (d *Display) Draw(screen *ebiten.Image) {
 	opGame.GeoM.Translate(gameScreenX*scalingFactor, gameScreenY*scalingFactor)
 
 	screen.DrawImage(gameScreen, opGame)
+
+	// Draw the menu bar
+	if d.menuBarVisible {
+		vector.DrawFilledRect(screen, 0, 0, float32(bezelWidth*scalingFactor), menuBarHeight, color.Black, false)
+
+		// Draw text for menu items
+		menuText := ebiten.NewImage(200, menuBarHeight)
+		ebitenutil.DebugPrintAt(menuText, "Load ROM", 10, 2)
+		ebitenutil.DebugPrintAt(menuText, "Exit", 120, 2)
+
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Scale(2, 2)
+		screen.DrawImage(menuText, op)
+	}
 }
 
 // Layout takes the outside size (e.g., the window size) and returns the (logical) screen size.
