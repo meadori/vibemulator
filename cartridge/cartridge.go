@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+
+	"github.com/meadori/vibemulator/mapper"
 )
 
 // Declare logDebug function from main package
@@ -18,21 +20,15 @@ const (
 	MirrorFourScreen     byte = 4
 )
 
-// Mapper defines the interface for different NES mappers.
-type Mapper interface {
-	CPUMapRead(addr uint16) (byte, bool)
-	CPUMapWrite(addr uint16, data byte) bool
-	PPUMapRead(addr uint16) (byte, bool)
-	PPUMapWrite(addr uint16, data byte) bool
-	GetMirroring() byte
-}
+
 
 // Cartridge represents an NES cartridge.
 type Cartridge struct {
-	PRGROM []byte
-	CHRROM []byte
-	Mapper Mapper
-	Mirror byte
+	PRGROM   []byte
+	CHRROM   []byte
+	Mapper   mapper.Mapper
+	Mirror   byte
+	IsCHRRAM bool
 }
 
 // New creates a new Cartridge instance from a .nes file.
@@ -56,9 +52,11 @@ func New(path string) (*Cartridge, error) {
 	
 	if chrRomSize > 0 {
 		c.CHRROM = data[16+prgRomSize : 16+prgRomSize+chrRomSize]
+		c.IsCHRRAM = false
 	} else {
 		// Allocate CHR RAM if no CHR ROM is present
 		c.CHRROM = make([]byte, 8192) // Common size for CHR RAM
+		c.IsCHRRAM = true
 	}
 	mapperID := (data[6] >> 4) | (data[7] & 0xF0)
 	c.Mirror = (data[6] & 1) | ((data[6] >> 3) & 2)
@@ -73,10 +71,12 @@ func New(path string) (*Cartridge, error) {
 }
 
 // NewMapper creates a Mapper instance based on the cartridge's mapper ID.
-func NewMapper(cart *Cartridge, mapperID byte) (Mapper, error) {
+func NewMapper(cart *Cartridge, mapperID byte) (mapper.Mapper, error) {
 	switch mapperID {
 	case 0:
 		return newNROM(cart), nil
+	case 1:
+		return newMMC1(cart), nil
 	default:
 		return nil, fmt.Errorf("unsupported mapper: %d", mapperID)
 	}

@@ -7,4 +7,5 @@ type Mapper interface {
 	PPUMapRead(addr uint16) (byte, bool)
 	PPUMapWrite(addr uint16, data byte) bool
 	GetMirroring() byte
+	Clock()
 }

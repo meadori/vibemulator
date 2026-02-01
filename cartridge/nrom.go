@@ -73,3 +73,5 @@ func (n *nrom) PPUMapWrite(addr uint16, data byte) bool {
 func (n *nrom) GetMirroring() byte {
 	return n.mirror
 }
+
+func (n *nrom) Clock() {}
