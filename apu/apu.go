@@ -12,12 +12,17 @@ var dutyCycles = [4][8]byte{
 	{1, 0, 0, 1, 1, 1, 1, 1}, // 25% negated
 }
 
+var triangleWaveform = [32]byte{
+	15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
+	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+}
+
 // PulseChannel represents a single pulse wave channel.
 type PulseChannel struct {
 	enabled bool
 
 	dutyCycle        byte
-	lengthCounterHalt bool
+	lengthCounterHalt bool // Also envelope loop flag
 	constantVolume   bool
 	volume           byte // Also used for envelope period
 
@@ -34,12 +39,37 @@ type PulseChannel struct {
 	dutySequencer   byte
 	sweepReloadFlag bool
 	sweepCounter    byte
+
+	// Envelope state
+	envelopeStartFlag bool
+	envelopeVolume    byte
+	envelopeDivider   byte
+	envelopeCounter   byte
+}
+
+// TriangleChannel represents the triangle wave channel.
+type TriangleChannel struct {
+	enabled bool
+
+	lengthCounterHalt bool
+	linearCounterLoad byte
+	linearCounter     byte
+
+	timer         uint16
+	lengthCounter byte
+
+	// Internal state
+	timerCounter          uint16
+	dutySequencer         byte
+	linearCounterReloadFlag bool
 }
 
 // APU represents the Audio Processing Unit.
 type APU struct {
-	pulse1 *PulseChannel
-	cycle  uint64
+	pulse1   *PulseChannel
+	pulse2   *PulseChannel
+	triangle *TriangleChannel
+	cycle    uint64
 
 	frameCounter      uint64
 	frameSequenceStep byte
@@ -56,6 +86,8 @@ type APU struct {
 func New() *APU {
 	return &APU{
 		pulse1:       &PulseChannel{},
+		pulse2:       &PulseChannel{},
+		triangle:     &TriangleChannel{},
 		sampleRate:   44100.0,
 		cpuClockRate: 1789773.0,
 		sampleBuffer: make([]float32, 0, 4096),
@@ -89,14 +121,23 @@ func (a *APU) ReadSamples(p []byte) (n int, err error) {
 
 // output returns the current mixed audio sample.
 func (a *APU) output() float32 {
-	// For now, just output the first pulse channel.
-	return float32(a.pulse1.output()) / 15.0
+	p1 := a.pulse1.output()
+	p2 := a.pulse2.output()
+	t := a.triangle.output()
+
+	// Approximation of NES mixing levels
+	pulseOut := 0.00752 * float32(p1+p2)
+	tndOut := 0.00851*float32(t) + 0.00494*float32(0) + 0.00335*float32(0) // Noise and DMC are zero for now
+
+	return pulseOut + tndOut
 }
 
 // Clock performs one APU clock cycle.
 func (a *APU) Clock() {
-	// The pulse channels are clocked every CPU clock cycle.
+	// The pulse and triangle channels are clocked every CPU clock cycle.
 	a.pulse1.Clock()
+	a.pulse2.Clock()
+	a.triangle.Clock()
 
 	// The frame counter is clocked at half the CPU speed.
 	if a.cycle%2 == 0 {
@@ -105,35 +146,35 @@ func (a *APU) Clock() {
 		// 4-step sequence
 		if a.sequenceMode == 0 {
 			if a.frameCounter == 3729 {
-				// Step 1: Clock envelopes and sweeps
+				a.clockEnvelopesAndLinearCounter()
 			}
 			if a.frameCounter == 7457 {
-				// Step 2: Clock envelopes, sweeps, and length counters
-				a.clockLengthCountersAndSweeps()
+				a.clockEnvelopesAndLinearCounter()
+				a.clockLengthAndSweeps()
 			}
 			if a.frameCounter == 11186 {
-				// Step 3: Clock envelopes and sweeps
+				a.clockEnvelopesAndLinearCounter()
 			}
 			if a.frameCounter == 14915 {
-				// Step 4: Clock envelopes, sweeps, and length counters
-				a.clockLengthCountersAndSweeps()
+				a.clockEnvelopesAndLinearCounter()
+				a.clockLengthAndSweeps()
 				// TODO: Fire IRQ if not inhibited
 				a.frameCounter = 0
 			}
 		} else { // 5-step sequence
 			if a.frameCounter == 3729 {
-				// Step 1: Clock envelopes and sweeps
+				a.clockEnvelopesAndLinearCounter()
 			}
 			if a.frameCounter == 7457 {
-				// Step 2: Clock envelopes, sweeps, and length counters
-				a.clockLengthCountersAndSweeps()
+				a.clockEnvelopesAndLinearCounter()
+				a.clockLengthAndSweeps()
 			}
 			if a.frameCounter == 11186 {
-				// Step 3: Clock envelopes and sweeps
+				a.clockEnvelopesAndLinearCounter()
 			}
 			if a.frameCounter == 18641 {
-				// Step 5: Clock envelopes, sweeps, and length counters
-				a.clockLengthCountersAndSweeps()
+				a.clockEnvelopesAndLinearCounter()
+				a.clockLengthAndSweeps()
 				a.frameCounter = 0
 			}
 		}
@@ -150,14 +191,86 @@ func (a *APU) Clock() {
 	a.cycle++
 }
 
-func (a *APU) clockLengthCountersAndSweeps() {
+func (a *APU) clockEnvelopesAndLinearCounter() {
+	a.pulse1.clockEnvelope()
+	a.pulse2.clockEnvelope()
+	a.triangle.clockLinear()
+	// TODO: Add other channels
+}
+
+func (a *APU) clockLengthAndSweeps() {
 	a.pulse1.clockLength()
+	a.pulse1.clockSweep()
+	a.pulse2.clockLength()
+	a.pulse2.clockSweep()
+	a.triangle.clockLength()
 	// TODO: Add other channels
 }
 
 func (p *PulseChannel) clockLength() {
 	if !p.lengthCounterHalt && p.lengthCounter > 0 {
 		p.lengthCounter--
+	}
+}
+
+func (t *TriangleChannel) clockLength() {
+	if !t.lengthCounterHalt && t.lengthCounter > 0 {
+		t.lengthCounter--
+	}
+}
+
+func (t *TriangleChannel) clockLinear() {
+	if t.linearCounterReloadFlag {
+		t.linearCounter = t.linearCounterLoad
+	} else if t.linearCounter > 0 {
+		t.linearCounter--
+	}
+	if !t.lengthCounterHalt { // Control flag also halts linear counter
+		t.linearCounterReloadFlag = false
+	}
+}
+
+
+func (p *PulseChannel) clockSweep() {
+	if p.sweepReloadFlag {
+		p.sweepCounter = p.sweepPeriod
+		p.sweepReloadFlag = false
+	}
+
+	if p.sweepCounter > 0 {
+		p.sweepCounter--
+	} else {
+		p.sweepCounter = p.sweepPeriod
+		if p.sweepEnabled && p.sweepShift > 0 {
+			change := p.timer >> p.sweepShift
+			if p.sweepNegate {
+				p.timer -= change
+				if p.timer < 8 {
+					p.timer = 8
+				}
+			} else {
+				if p.timer+change < 0x7FF {
+					p.timer += change
+				}
+			}
+		}
+	}
+}
+
+func (p *PulseChannel) clockEnvelope() {
+	if p.envelopeStartFlag {
+		p.envelopeStartFlag = false
+		p.envelopeCounter = 15
+		p.envelopeDivider = p.volume
+	} else if p.envelopeDivider > 0 {
+		p.envelopeDivider--
+	} else {
+		p.envelopeDivider = p.volume
+		if p.envelopeCounter > 0 {
+			p.envelopeCounter--
+		} else if p.lengthCounterHalt { // Loop enabled
+			p.envelopeCounter = 15
+		}
 	}
 }
 
@@ -170,11 +283,29 @@ func (p *PulseChannel) Clock() {
 	}
 }
 
+func (t *TriangleChannel) Clock() {
+	if t.timerCounter > 0 {
+		t.timerCounter--
+	} else {
+		t.timerCounter = t.timer
+		if t.linearCounter > 0 && t.lengthCounter > 0 {
+			t.dutySequencer = (t.dutySequencer + 1) % 32
+		}
+	}
+}
+
 // SetEnabled enables or disables the channel.
 func (p *PulseChannel) SetEnabled(enabled bool) {
 	p.enabled = enabled
 	if !enabled {
 		p.lengthCounter = 0
+	}
+}
+
+func (t *TriangleChannel) SetEnabled(enabled bool) {
+	t.enabled = enabled
+	if !enabled {
+		t.lengthCounter = 0
 	}
 }
 
@@ -191,8 +322,26 @@ func (p *PulseChannel) output() byte {
 	if dutyCycles[p.dutyCycle][p.dutySequencer] == 0 {
 		return 0
 	}
-	// TODO: Add envelope and sweep logic
-	return p.volume
+	if p.constantVolume {
+		return p.volume
+	}
+	return p.envelopeCounter
+}
+
+func (t *TriangleChannel) output() byte {
+	if !t.enabled {
+		return 0
+	}
+	if t.lengthCounter == 0 {
+		return 0
+	}
+	if t.linearCounter == 0 {
+		return 0
+	}
+	if t.timer < 2 { // Supersonic
+		return 0
+	}
+	return triangleWaveform[t.dutySequencer]
 }
 
 // CPURead handles CPU reads from the APU's registers.
@@ -207,8 +356,14 @@ func (a *APU) CPUWrite(addr uint16, data byte) {
 	switch {
 	case addr >= 0x4000 && addr <= 0x4003:
 		a.pulse1.cpuWrite(addr, data)
+	case addr >= 0x4004 && addr <= 0x4007:
+		a.pulse2.cpuWrite(addr&0x0003, data) // Use bitwise AND for offset
+	case addr >= 0x4008 && addr <= 0x400B:
+		a.triangle.cpuWrite(addr, data)
 	case addr == 0x4015: // Status register
 		a.pulse1.SetEnabled(data&0x01 == 1)
+		a.pulse2.SetEnabled(data&0x02 == 1)
+		a.triangle.SetEnabled(data&0x04 == 1)
 		// TODO: Add other channels
 	case addr == 0x4017: // Frame Counter
 		a.sequenceMode = (data >> 7) & 1
@@ -216,7 +371,7 @@ func (a *APU) CPUWrite(addr uint16, data byte) {
 		a.frameCounter = 0
 		if a.sequenceMode == 1 {
 			// 5-step mode clocks length counters and sweeps immediately
-			a.clockLengthCountersAndSweeps()
+			a.clockLengthAndSweeps()
 		}
 	}
 }
@@ -225,9 +380,10 @@ func (p *PulseChannel) cpuWrite(addr uint16, data byte) {
 	switch addr {
 	case 0x4000:
 		p.dutyCycle = (data >> 6) & 0x03
-		p.lengthCounterHalt = (data>>5)&1 == 1
+		p.lengthCounterHalt = (data>>5)&1 == 1 // Envelope loop flag
 		p.constantVolume = (data>>4)&1 == 1
-		p.volume = data & 0x0F
+		p.volume = data & 0x0F // Also envelope period
+		p.envelopeStartFlag = true
 	case 0x4001:
 		p.sweepEnabled = (data>>7)&1 == 1
 		p.sweepPeriod = (data >> 4) & 0x07
@@ -240,5 +396,22 @@ func (p *PulseChannel) cpuWrite(addr uint16, data byte) {
 		p.timer = (p.timer & 0x00FF) | (uint16(data&0x07) << 8)
 		p.lengthCounter = lengthCounterTable[(data>>3)&0x1F]
 		p.dutySequencer = 0 // Reset phase
+		p.envelopeStartFlag = true
+	}
+}
+
+func (t *TriangleChannel) cpuWrite(addr uint16, data byte) {
+	switch addr {
+	case 0x4008:
+		t.lengthCounterHalt = (data>>7)&1 == 1
+		t.linearCounterLoad = data & 0x7F
+	case 0x4009:
+		// Unused
+	case 0x400A:
+		t.timer = (t.timer & 0xFF00) | uint16(data)
+	case 0x400B:
+		t.timer = (t.timer & 0x00FF) | (uint16(data&0x07) << 8)
+		t.lengthCounter = lengthCounterTable[(data>>3)&0x1F]
+		t.linearCounterReloadFlag = true
 	}
 }
