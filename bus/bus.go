@@ -58,10 +58,10 @@ func (b *Bus) LoadCartridge(cart *cartridge.Cartridge) error {
 func (b *Bus) Clock() {
 	b.PPU.Clock()
 	// The CPU runs at 1/3 the speed of the PPU
-			if b.SystemClocks%3 == 0 {
-			// Clock APU first to ensure IRQ status is updated for current CPU cycle
-			b.APU.Clock()
-			b.cart.Mapper.Clock()
+	if b.SystemClocks%3 == 0 {
+		// Clock APU first to ensure IRQ status is updated for current CPU cycle
+		b.APU.Clock()
+		b.cart.Mapper.Clock()
 		// Check for NMI (PPU)
 		if b.PPU.NMI {
 			b.PPU.NMI = false
