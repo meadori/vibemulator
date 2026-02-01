@@ -21,6 +21,10 @@ var noiseTimerTable = [16]uint16{
 	4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068,
 }
 
+var dmcRateTable = [16]uint16{
+	428, 380, 340, 320, 286, 254, 226, 214, 190, 160, 142, 128, 106, 84, 72, 54,
+}
+
 // PulseChannel represents a single pulse wave channel.
 type PulseChannel struct {
 	enabled bool
@@ -92,13 +96,41 @@ type NoiseChannel struct {
 	envelopeCounter   byte
 }
 
+// DMCChannel represents the delta modulation channel.
+type DMCChannel struct {
+	enabled bool
+
+	irqEnabled bool
+	loop       bool
+	rateIndex  byte
+	
+	timer uint16
+	
+	// Sample state
+	sampleAddress  uint16
+	sampleLength   uint16
+	currentAddress uint16
+	bytesRemaining uint16
+	
+	// Output state
+	outputLevel     byte
+	shiftRegister   byte
+	bitsRemaining   byte
+	sampleBuffer    byte
+	sampleBufferEmpty bool
+
+	bus BusReader // Interface to read from the bus
+}
+
 // APU represents the Audio Processing Unit.
 type APU struct {
 	pulse1   *PulseChannel
 	pulse2   *PulseChannel
 	triangle *TriangleChannel
 	noise    *NoiseChannel
+	dmc      *DMCChannel
 	cycle    uint64
+	bus      BusReader // Interface to read from the bus
 
 	frameCounter      uint64
 	frameSequenceStep byte
@@ -111,6 +143,12 @@ type APU struct {
 	sampleBuffer     []float32
 }
 
+// BusReader defines the interface the APU needs to read from the bus.
+type BusReader interface {
+	Read(addr uint16) byte
+}
+
+
 // New creates a new APU instance.
 func New() *APU {
 	apu := &APU{
@@ -118,12 +156,24 @@ func New() *APU {
 		pulse2:       &PulseChannel{},
 		triangle:     &TriangleChannel{},
 		noise:        &NoiseChannel{},
+		dmc:          &DMCChannel{},
 		sampleRate:   44100.0,
 		cpuClockRate: 1789773.0,
 		sampleBuffer: make([]float32, 0, 4096),
 	}
 	apu.noise.shiftRegister = 1
 	return apu
+}
+
+// ConnectBus connects the bus to the APU.
+func (a *APU) ConnectBus(bus BusReader) {
+	a.bus = bus
+	a.dmc.ConnectBus(bus)
+}
+
+// ConnectBus connects the bus to the DMCChannel.
+func (d *DMCChannel) ConnectBus(bus BusReader) {
+	d.bus = bus
 }
 
 // ReadSamples reads generated samples into a byte buffer.
@@ -157,10 +207,11 @@ func (a *APU) output() float32 {
 	p2 := a.pulse2.output()
 	t := a.triangle.output()
 	n := a.noise.output()
+	d := a.dmc.output()
 
 	// Approximation of NES mixing levels
 	pulseOut := 0.00752 * float32(p1+p2)
-	tndOut := 0.00851*float32(t) + 0.00494*float32(n) + 0.00335*float32(0) // DMC is zero for now
+	tndOut := 0.00851*float32(t) + 0.00494*float32(n) + 0.00335*float32(d)
 
 	return pulseOut + tndOut
 }
@@ -172,6 +223,7 @@ func (a *APU) Clock() {
 	a.pulse2.Clock()
 	a.triangle.Clock()
 	a.noise.Clock()
+	a.dmc.Clock(a.bus)
 
 	// The frame counter is clocked at half the CPU speed.
 	if a.cycle%2 == 0 {
@@ -368,6 +420,49 @@ func (n *NoiseChannel) Clock() {
 	}
 }
 
+func (d *DMCChannel) Clock(bus BusReader) {
+	if d.timer > 0 {
+		d.timer--
+	} else {
+		d.timer = dmcRateTable[d.rateIndex]
+		if d.bitsRemaining == 0 {
+			d.bitsRemaining = 8
+			if d.sampleBufferEmpty && d.bytesRemaining > 0 {
+				d.sampleBuffer = bus.Read(d.currentAddress)
+				d.sampleBufferEmpty = false
+				d.currentAddress++
+				if d.currentAddress == 0 {
+					d.currentAddress = 0x8000
+				}
+				d.bytesRemaining--
+				if d.bytesRemaining == 0 {
+					if d.loop {
+						d.currentAddress = d.sampleAddress
+						d.bytesRemaining = d.sampleLength
+					}
+				}
+			}
+		}
+
+		if !d.sampleBufferEmpty {
+			if (d.shiftRegister & 1) == 1 {
+				if d.outputLevel <= 125 {
+					d.outputLevel += 2
+				}
+			} else {
+				if d.outputLevel >= 2 {
+					d.outputLevel -= 2
+				}
+			}
+			d.shiftRegister >>= 1
+			d.bitsRemaining--
+			if d.bitsRemaining == 0 {
+				d.sampleBufferEmpty = true
+			}
+		}
+	}
+}
+
 
 // SetEnabled enables or disables the channel.
 func (p *PulseChannel) SetEnabled(enabled bool) {
@@ -390,6 +485,19 @@ func (n *NoiseChannel) SetEnabled(enabled bool) {
 		n.lengthCounter = 0
 	}
 }
+
+func (d *DMCChannel) SetEnabled(enabled bool) {
+	d.enabled = enabled
+	if !enabled {
+		d.bytesRemaining = 0
+	} else {
+		if d.bytesRemaining == 0 {
+			d.currentAddress = d.sampleAddress
+			d.bytesRemaining = d.sampleLength
+		}
+	}
+}
+
 
 func (p *PulseChannel) output() byte {
 	if !p.enabled {
@@ -443,6 +551,10 @@ func (n *NoiseChannel) output() byte {
 	return n.envelopeCounter
 }
 
+func (d *DMCChannel) output() byte {
+	return d.outputLevel
+}
+
 // CPURead handles CPU reads from the APU's registers.
 func (a *APU) CPURead(addr uint16) byte {
 	var data byte
@@ -461,12 +573,14 @@ func (a *APU) CPUWrite(addr uint16, data byte) {
 		a.triangle.cpuWrite(addr, data)
 	case addr >= 0x400C && addr <= 0x400F:
 		a.noise.cpuWrite(addr, data)
+	case addr >= 0x4010 && addr <= 0x4013:
+		a.dmc.cpuWrite(addr, data)
 	case addr == 0x4015: // Status register
 		a.pulse1.SetEnabled(data&0x01 == 1)
 		a.pulse2.SetEnabled(data&0x02 == 1)
 		a.triangle.SetEnabled(data&0x04 == 1)
 		a.noise.SetEnabled(data&0x08 == 1)
-		// TODO: Add other channels
+		a.dmc.SetEnabled(data&0x10 == 1)
 	case addr == 0x4017: // Frame Counter
 		a.sequenceMode = (data >> 7) & 1
 		a.irqInhibit = (data>>6)&1 == 1
@@ -533,5 +647,21 @@ func (n *NoiseChannel) cpuWrite(addr uint16, data byte) {
 	case 0x400F:
 		n.lengthCounter = lengthCounterTable[(data>>3)&0x1F]
 		n.envelopeStartFlag = true
+	}
+}
+
+func (d *DMCChannel) cpuWrite(addr uint16, data byte) {
+	switch addr {
+	case 0x4010:
+		d.irqEnabled = (data>>7)&1 == 1
+		d.loop = (data>>6)&1 == 1
+		d.rateIndex = data & 0x0F
+		d.timer = dmcRateTable[d.rateIndex]
+	case 0x4011:
+		d.outputLevel = data & 0x7F
+	case 0x4012:
+		d.sampleAddress = 0xC000 + uint16(data)*64
+	case 0x4013:
+		d.sampleLength = uint16(data)*16 + 1
 	}
 }

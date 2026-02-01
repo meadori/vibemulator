@@ -40,6 +40,7 @@ func New() *Bus {
 	}
 
 	b.cpu.ConnectBus(b)
+	b.APU.ConnectBus(b)
 
 	return b
 }
