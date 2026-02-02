@@ -110,7 +110,7 @@ func TestIncDec(t *testing.T) {
 	// INX
 	c.PC = 0x8002
 	c.X = 0x10
-	bus.Write(0x8002, 0xE8) // INX
+	bus.Write(0x8002, 0xE8)  // INX
 	executeOneInstruction(c) // Replaced c.Clock()
 	if c.X != 0x11 {
 		t.Error("INX failed")
@@ -135,7 +135,7 @@ func TestShiftRotate(t *testing.T) {
 
 	// ASL
 	c.A = 0b01010101
-	bus.Write(0x8000, 0x0A) // ASL
+	bus.Write(0x8000, 0x0A)  // ASL
 	executeOneInstruction(c) // Replaced c.Clock()
 	if c.A != 0b10101010 {
 		t.Error("ASL failed")
@@ -146,7 +146,7 @@ func TestShiftRotate(t *testing.T) {
 
 	// LSR
 	c.PC = 0x8001
-	bus.Write(0x8001, 0x4A) // LSR
+	bus.Write(0x8001, 0x4A)  // LSR
 	executeOneInstruction(c) // Replaced c.Clock()
 	if c.A != 0b01010101 {
 		t.Error("LSR failed")

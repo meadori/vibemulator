@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	sampleRate      = 44100
-	scalingFactor   = 1.5
+	sampleRate       = 44100
+	scalingFactor    = 1.5
 	bezelWidth       = 1024
 	bezelHeight      = 1024
 	gameScreenX      = 318
@@ -111,14 +111,14 @@ func (d *Display) Update() error {
 
 	// Poll controller input
 	buttons := [8]bool{}
-	buttons[0] = ebiten.IsKeyPressed(ebiten.KeyZ)         // A
-	buttons[1] = ebiten.IsKeyPressed(ebiten.KeyX)         // B
-	buttons[2] = ebiten.IsKeyPressed(ebiten.KeyShift)     // Select
-	buttons[3] = ebiten.IsKeyPressed(ebiten.KeyEnter)     // Start
-	buttons[4] = ebiten.IsKeyPressed(ebiten.KeyArrowUp)   // Up
-	buttons[5] = ebiten.IsKeyPressed(ebiten.KeyArrowDown) // Down
-	buttons[6] = ebiten.IsKeyPressed(ebiten.KeyArrowLeft) // Left
-	buttons[7] = ebiten.IsKeyPressed(ebiten.KeyArrowRight)// Right
+	buttons[0] = ebiten.IsKeyPressed(ebiten.KeyZ)          // A
+	buttons[1] = ebiten.IsKeyPressed(ebiten.KeyX)          // B
+	buttons[2] = ebiten.IsKeyPressed(ebiten.KeyShift)      // Select
+	buttons[3] = ebiten.IsKeyPressed(ebiten.KeyEnter)      // Start
+	buttons[4] = ebiten.IsKeyPressed(ebiten.KeyArrowUp)    // Up
+	buttons[5] = ebiten.IsKeyPressed(ebiten.KeyArrowDown)  // Down
+	buttons[6] = ebiten.IsKeyPressed(ebiten.KeyArrowLeft)  // Left
+	buttons[7] = ebiten.IsKeyPressed(ebiten.KeyArrowRight) // Right
 	d.bus.SetController1State(buttons)
 
 	// Run the emulator for one frame's worth of PPU cycles.
@@ -160,36 +160,37 @@ func (d *Display) Draw(screen *ebiten.Image) {
 	if d.menuBarVisible {
 		vector.DrawFilledRect(screen, 0, 0, float32(bezelWidth*scalingFactor), menuBarHeight, color.Black, false)
 
-						// Draw text for menu items
-								// LOAD button
-								loadBoxX, loadBoxY, loadBoxW, loadBoxH := float32(10), float32(4), float32(70), float32(40) // Adjusted Y
-								vector.StrokeRect(screen, loadBoxX, loadBoxY, loadBoxW, loadBoxH, 1, color.White, false)
-								loadText := ebiten.NewImage(50, menuBarHeight)
-								ebitenutil.DebugPrintAt(loadText, "LOAD", 0, 2)
-								op := &ebiten.DrawImageOptions{}
-								op.GeoM.Scale(2, 2)
-								op.GeoM.Translate(float64(loadBoxX+5), float64(loadBoxY+8)) // Adjusted Y-offset
-								screen.DrawImage(loadText, op)
-						
-								// POWER button
-								powerBoxX, powerBoxY, powerBoxW, powerBoxH := float32(90), float32(4), float32(80), float32(40) // Adjusted Y
-								vector.StrokeRect(screen, powerBoxX, powerBoxY, powerBoxW, powerBoxH, 1, color.White, false)
-								powerText := ebiten.NewImage(60, menuBarHeight)
-								ebitenutil.DebugPrintAt(powerText, "POWER", 0, 2)
-								op = &ebiten.DrawImageOptions{}
-								op.GeoM.Scale(2, 2)
-								op.GeoM.Translate(float64(powerBoxX+5), float64(powerBoxY+8)) // Adjusted Y-offset
-								screen.DrawImage(powerText, op)
-						
-								// RESET button
-								resetBoxX, resetBoxY, resetBoxW, resetBoxH := float32(180), float32(4), float32(80), float32(40) // Adjusted Y
-								vector.StrokeRect(screen, resetBoxX, resetBoxY, resetBoxW, resetBoxH, 1, color.White, false)
-								resetText := ebiten.NewImage(60, menuBarHeight)
-								ebitenutil.DebugPrintAt(resetText, "RESET", 0, 2)
-								op = &ebiten.DrawImageOptions{}
-								op.GeoM.Scale(2, 2)
-								op.GeoM.Translate(float64(resetBoxX+5), float64(resetBoxY+8)) // Adjusted Y-offset
-								screen.DrawImage(resetText, op)	}
+		// Draw text for menu items
+		// LOAD button
+		loadBoxX, loadBoxY, loadBoxW, loadBoxH := float32(10), float32(4), float32(70), float32(40) // Adjusted Y
+		vector.StrokeRect(screen, loadBoxX, loadBoxY, loadBoxW, loadBoxH, 1, color.White, false)
+		loadText := ebiten.NewImage(50, menuBarHeight)
+		ebitenutil.DebugPrintAt(loadText, "LOAD", 0, 2)
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Scale(2, 2)
+		op.GeoM.Translate(float64(loadBoxX+5), float64(loadBoxY+8)) // Adjusted Y-offset
+		screen.DrawImage(loadText, op)
+
+		// POWER button
+		powerBoxX, powerBoxY, powerBoxW, powerBoxH := float32(90), float32(4), float32(80), float32(40) // Adjusted Y
+		vector.StrokeRect(screen, powerBoxX, powerBoxY, powerBoxW, powerBoxH, 1, color.White, false)
+		powerText := ebiten.NewImage(60, menuBarHeight)
+		ebitenutil.DebugPrintAt(powerText, "POWER", 0, 2)
+		op = &ebiten.DrawImageOptions{}
+		op.GeoM.Scale(2, 2)
+		op.GeoM.Translate(float64(powerBoxX+5), float64(powerBoxY+8)) // Adjusted Y-offset
+		screen.DrawImage(powerText, op)
+
+		// RESET button
+		resetBoxX, resetBoxY, resetBoxW, resetBoxH := float32(180), float32(4), float32(80), float32(40) // Adjusted Y
+		vector.StrokeRect(screen, resetBoxX, resetBoxY, resetBoxW, resetBoxH, 1, color.White, false)
+		resetText := ebiten.NewImage(60, menuBarHeight)
+		ebitenutil.DebugPrintAt(resetText, "RESET", 0, 2)
+		op = &ebiten.DrawImageOptions{}
+		op.GeoM.Scale(2, 2)
+		op.GeoM.Translate(float64(resetBoxX+5), float64(resetBoxY+8)) // Adjusted Y-offset
+		screen.DrawImage(resetText, op)
+	}
 }
 
 // Layout takes the outside size (e.g., the window size) and returns the (logical) screen size.

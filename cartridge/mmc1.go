@@ -11,10 +11,10 @@ type mmc1 struct {
 	cart   *Cartridge
 
 	// Registers
-	control    byte
-	chrBank0   byte
-	chrBank1   byte
-	prgBank    byte
+	control  byte
+	chrBank0 byte
+	chrBank1 byte
+	prgBank  byte
 
 	// Shift register for serial writes
 	shiftRegister byte
@@ -50,7 +50,7 @@ func (m *mmc1) CPUMapRead(addr uint16) (byte, bool) {
 		var finalAddr uint32
 		switch prgBankMode {
 		case 0, 1: // switch 32 KB at $8000
-			bank := uint32(m.prgBank & 0x0E) >> 1
+			bank := uint32(m.prgBank&0x0E) >> 1
 			bank %= (numPrgBanks / 2)
 			finalAddr = bank*32768 + uint32(addr&0x7FFF)
 		case 2: // fix first bank at $8000 and switch 16 KB bank at $C000
@@ -137,7 +137,7 @@ func (m *mmc1) PPUMapRead(addr uint16) (byte, bool) {
 		var finalAddr uint32
 
 		if chrBankMode == 0 { // 8KB mode
-			bank := uint32(m.chrBank0 & 0x1E) >> 1
+			bank := uint32(m.chrBank0&0x1E) >> 1
 			bank %= (numChrBanks / 2)
 			finalAddr = bank*8192 + uint32(addr&0x1FFF)
 		} else { // 4KB mode
@@ -166,7 +166,7 @@ func (m *mmc1) PPUMapWrite(addr uint16, data byte) bool {
 			var finalAddr uint32
 
 			if chrBankMode == 0 { // 8KB mode
-				bank := uint32(m.chrBank0 & 0x1E) >> 1
+				bank := uint32(m.chrBank0&0x1E) >> 1
 				bank %= (numChrBanks / 2)
 				finalAddr = bank*8192 + uint32(addr&0x1FFF)
 			} else { // 4KB mode

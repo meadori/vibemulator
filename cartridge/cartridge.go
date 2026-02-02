@@ -20,8 +20,6 @@ const (
 	MirrorFourScreen     byte = 4
 )
 
-
-
 // Cartridge represents an NES cartridge.
 type Cartridge struct {
 	PRGROM   []byte
@@ -49,7 +47,7 @@ func New(path string) (*Cartridge, error) {
 	chrRomSize := int(data[5]) * 8192
 
 	c.PRGROM = data[16 : 16+prgRomSize]
-	
+
 	if chrRomSize > 0 {
 		c.CHRROM = data[16+prgRomSize : 16+prgRomSize+chrRomSize]
 		c.IsCHRRAM = false

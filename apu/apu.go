@@ -29,10 +29,10 @@ var dmcRateTable = [16]uint16{
 type PulseChannel struct {
 	enabled bool
 
-	dutyCycle        byte
+	dutyCycle         byte
 	lengthCounterHalt bool // Also envelope loop flag
-	constantVolume   bool
-	volume           byte // Also used for envelope period
+	constantVolume    bool
+	volume            byte // Also used for envelope period
 
 	sweepEnabled bool
 	sweepPeriod  byte
@@ -67,8 +67,8 @@ type TriangleChannel struct {
 	lengthCounter byte
 
 	// Internal state
-	timerCounter          uint16
-	dutySequencer         byte
+	timerCounter            uint16
+	dutySequencer           byte
 	linearCounterReloadFlag bool
 }
 
@@ -103,24 +103,24 @@ type DMCChannel struct {
 	irqEnabled bool
 	loop       bool
 	rateIndex  byte
-	
+
 	timer uint16
-	
+
 	// Sample state
 	sampleAddress  uint16
 	sampleLength   uint16
 	currentAddress uint16
 	bytesRemaining uint16
-	
+
 	// Output state
-	outputLevel     byte
-	shiftRegister   byte
-	bitsRemaining   byte
-	sampleBuffer    byte
+	outputLevel       byte
+	shiftRegister     byte
+	bitsRemaining     byte
+	sampleBuffer      byte
 	sampleBufferEmpty bool
 
-	irqPending bool // New field to signal IRQ
-	bus BusReader // Interface to read from the bus
+	irqPending bool      // New field to signal IRQ
+	bus        BusReader // Interface to read from the bus
 }
 
 // APU represents the Audio Processing Unit.
@@ -137,19 +137,18 @@ type APU struct {
 	frameSequenceStep byte
 	sequenceMode      byte // 0 for 4-step, 1 for 5-step
 	irqInhibit        bool
-	DmcIRQ bool // DMC Interrupt Flag
+	DmcIRQ            bool // DMC Interrupt Flag
 
-	sampleRate       float64
-	cpuClockRate     float64
+	sampleRate         float64
+	cpuClockRate       float64
 	sampleCycleCounter float64
-	sampleBuffer     []float32
+	sampleBuffer       []float32
 }
 
 // BusReader defines the interface the APU needs to read from the bus.
 type BusReader interface {
 	Read(addr uint16) byte
 }
-
 
 // New creates a new APU instance.
 func New() *APU {
@@ -202,7 +201,6 @@ func (a *APU) ReadSamples(p []byte) (n int, err error) {
 	return written, nil
 }
 
-
 // output returns the current mixed audio sample.
 func (a *APU) output() float32 {
 	p1 := a.pulse1.output()
@@ -228,9 +226,9 @@ func (a *APU) Clock() {
 	a.dmc.Clock(a.bus)
 
 	// Check for DMC IRQ
-	    if a.dmc.irqPending {
-	        a.DmcIRQ = true
-	    }
+	if a.dmc.irqPending {
+		a.DmcIRQ = true
+	}
 	// The frame counter is clocked at half the CPU speed.
 	if a.cycle%2 == 0 {
 		a.frameCounter++
@@ -279,7 +277,6 @@ func (a *APU) Clock() {
 		a.sampleBuffer = append(a.sampleBuffer, a.output())
 	}
 
-
 	a.cycle++
 }
 
@@ -327,7 +324,6 @@ func (t *TriangleChannel) clockLinear() {
 		t.linearCounterReloadFlag = false
 	}
 }
-
 
 func (p *PulseChannel) clockSweep() {
 	if p.sweepReloadFlag {
@@ -414,7 +410,7 @@ func (n *NoiseChannel) Clock() {
 		n.timerCounter--
 	} else {
 		n.timerCounter = noiseTimerTable[n.timerPeriod]
-		
+
 		var feedbackBit uint16
 		if n.mode { // Mode 1
 			feedbackBit = ((n.shiftRegister >> 6) & 1) ^ (n.shiftRegister & 1)
@@ -473,7 +469,6 @@ func (d *DMCChannel) Clock(bus BusReader) {
 	}
 }
 
-
 // SetEnabled enables or disables the channel.
 func (p *PulseChannel) SetEnabled(enabled bool) {
 	p.enabled = enabled
@@ -507,7 +502,6 @@ func (d *DMCChannel) SetEnabled(enabled bool) {
 		}
 	}
 }
-
 
 func (p *PulseChannel) output() byte {
 	if !p.enabled {
@@ -588,16 +582,16 @@ func (a *APU) CPURead(addr uint16) byte {
 		}
 		// Bit 6: Frame Interrupt Flag (cleared on read)
 		// Bit 7: DMC Interrupt Flag (cleared on read)
-        if a.DmcIRQ {
-            data |= 0x80
-            a.DmcIRQ = false
-            a.dmc.irqPending = false
-        }
-        // Frame Interrupt Flag (bit 6) is cleared on read only if not inhibited
-        if !a.irqInhibit {
-            // TODO: Need a frame IRQ flag in APU struct
-            // For now, if we had a frame IRQ, we would clear it here.
-        }
+		if a.DmcIRQ {
+			data |= 0x80
+			a.DmcIRQ = false
+			a.dmc.irqPending = false
+		}
+		// Frame Interrupt Flag (bit 6) is cleared on read only if not inhibited
+		if !a.irqInhibit {
+			// TODO: Need a frame IRQ flag in APU struct
+			// For now, if we had a frame IRQ, we would clear it here.
+		}
 
 	}
 	return data
@@ -622,9 +616,9 @@ func (a *APU) CPUWrite(addr uint16, data byte) {
 		a.triangle.SetEnabled(data&0x04 == 1)
 		a.noise.SetEnabled(data&0x08 == 1)
 		a.dmc.SetEnabled(data&0x10 == 1)
-        // Writing to $4015 clears the DMC IRQ flag
-        a.DmcIRQ = false
-        a.dmc.irqPending = false
+		// Writing to $4015 clears the DMC IRQ flag
+		a.DmcIRQ = false
+		a.dmc.irqPending = false
 	case addr == 0x4017: // Frame Counter
 		a.sequenceMode = (data >> 7) & 1
 		a.irqInhibit = (data>>6)&1 == 1

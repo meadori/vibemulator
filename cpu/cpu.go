@@ -42,15 +42,14 @@ type CPU struct {
 
 	bus Bus
 
-	opcode  byte
-	Cycles  int // Exported
-	Lookup  [256]Instruction
+	opcode byte
+	Cycles int // Exported
+	Lookup [256]Instruction
 
 	fetched uint8
 	addrAbs uint16
 	addrRel uint16
 }
-
 
 // New creates a new CPU instance.
 func New() *CPU {
@@ -78,7 +77,7 @@ func (c *CPU) Reset() {
 	c.SP = 0xFD
 	c.P = 0x00 | U
 	c.setFlag('I', true) // This sets the I flag
-	c.Cycles = 8 // Updated
+	c.Cycles = 8         // Updated
 }
 
 // NMI is a non-maskable interrupt.
@@ -133,7 +132,6 @@ func (c *CPU) LogState() string {
 		c.PC, c.A, c.X, c.Y, c.P, c.SP)
 }
 
-
 // Clock performs one clock cycle.
 func (c *CPU) Clock() {
 	safeLogDebug("CPU Clock")
@@ -161,7 +159,6 @@ func (c *CPU) pop() byte {
 	c.SP++
 	return c.bus.Read(0x0100 + uint16(c.SP))
 }
-
 
 // createLookupTable creates and returns the 6502 instruction lookup table.
 func (c *CPU) createLookupTable() [256]Instruction {
@@ -202,7 +199,7 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		// Unofficial Load (ATX / LXA)
 		0xAB: {"ATX", c.atx, c.imm, "imm", 2},
 		// LDX
-				0xA2: {"LDX", c.ldx, c.imm, "imm", 2},
+		0xA2: {"LDX", c.ldx, c.imm, "imm", 2},
 		0xA6: {"LDX", c.ldx, c.zp0, "zp0", 3},
 		0xB6: {"LDX", c.ldx, c.zpy, "zpy", 4},
 		0xAE: {"LDX", c.ldx, c.abs, "abs", 4},
@@ -374,8 +371,6 @@ func (c *CPU) createLookupTable() [256]Instruction {
 		0x63: {"RRA", c.rra, c.izx, "izx", 8},
 		0x73: {"RRA", c.rra, c.izy, "izy", 8},
 
-
-
 		// Shift/Rotate
 		0x0A: {"ASL", c.asl, c.imp, "imp", 2},
 		0x06: {"ASL", c.asl, c.zp0, "zp0", 5},
@@ -480,7 +475,6 @@ func (c *CPU) createLookupTable() [256]Instruction {
 	}
 	return lookup
 }
-
 
 // Addressing Modes
 
@@ -631,7 +625,7 @@ func (c *CPU) stx() byte {
 // M = Y AND (high_byte_of_operand + 1)
 func (c *CPU) sya() byte {
 	// The high byte of the absolute address operand is at PC-1 (since PC was incremented twice by abx)
-	hi_operand := c.bus.Read(c.PC - 1) 
+	hi_operand := c.bus.Read(c.PC - 1)
 	val := c.Y & (hi_operand + 1) // Y AND (high_byte_of_operand + 1)
 	c.bus.Write(c.addrAbs, val)
 	return 0
@@ -768,7 +762,7 @@ func (c *CPU) las() byte {
 // Unofficial ATX (OAL/AXA)
 // X = (A OR 0xEE) AND M
 func (c *CPU) atx() byte {
-	c.fetch() // c.fetched will contain M (the immediate operand)
+	c.fetch()                       // c.fetched will contain M (the immediate operand)
 	val := (c.A | 0xEE) & c.fetched // Calculate (A OR 0xEE) AND M
 	c.X = val                       // Store result in X
 	// A is unchanged according to this interpretation.
@@ -790,10 +784,10 @@ func (c *CPU) lax() byte {
 func (c *CPU) sbc() byte {
 	c.fetch() // c.fetched will contain M
 	temp := uint16(c.A) - uint16(c.fetched) - (1 - uint16(c.getFlag('C')))
-	
+
 	c.setFlag('C', temp < 0x100)
 	c.setFlag('Z', (temp&0x00FF) == 0)
-	c.setFlag('V', ((uint16(c.A) ^ temp) & (0x00FF ^ uint16(c.fetched) ^ temp)) & 0x0080 != 0)
+	c.setFlag('V', ((uint16(c.A)^temp)&(0x00FF^uint16(c.fetched)^temp))&0x0080 != 0)
 	c.setFlag('N', temp&0x0080 != 0)
 	c.A = byte(temp & 0x00FF)
 	return 0
@@ -803,7 +797,7 @@ func (c *CPU) adc() byte {
 	temp := uint16(c.A) + uint16(c.fetched) + uint16(c.getFlag('C'))
 	c.setFlag('C', temp > 255)
 	c.setFlag('Z', (temp&0x00FF) == 0)
-	c.setFlag('V', ((uint16(c.A) ^ temp) & (uint16(c.fetched) ^ temp)) & 0x0080 != 0)
+	c.setFlag('V', ((uint16(c.A)^temp)&(uint16(c.fetched)^temp))&0x0080 != 0)
 	c.setFlag('N', temp&0x80 != 0)
 	c.A = byte(temp & 0x00FF)
 	return 0
@@ -871,7 +865,7 @@ func (c *CPU) dcp() byte {
 
 func (c *CPU) isc() byte {
 	c.fetch() // c.fetched will contain the M (value from c.addrAbs)
-	
+
 	// INC operation
 	temp := c.fetched + 1 // Use temp as the incremented value for consistency with SBC
 	c.bus.Write(c.addrAbs, temp)
@@ -882,7 +876,7 @@ func (c *CPU) isc() byte {
 
 	c.setFlag('C', res < 0x100) // If borrow, C is clear
 	c.setFlag('Z', (res&0x00FF) == 0)
-	c.setFlag('V', ((uint16(c.A) ^ res) & (sbcVal ^ res)) & 0x0080 != 0)
+	c.setFlag('V', ((uint16(c.A)^res)&(sbcVal^res))&0x0080 != 0)
 	c.setFlag('N', res&0x0080 != 0)
 	c.A = byte(res & 0x00FF)
 	return 0
@@ -914,7 +908,7 @@ func (c *CPU) axs() byte {
 	c.fetch()
 	val := c.A & c.X
 	res := uint16(val) - uint16(c.fetched) - (1 - uint16(c.getFlag('C')))
-	
+
 	// Flags affected: C, Z, N
 	// C: if no borrow (result >= 0)
 	// Z: if result is zero
@@ -922,7 +916,7 @@ func (c *CPU) axs() byte {
 	c.setFlag('C', res < 0x100) // If borrow, C is clear (equivalent to C set on A >= fetched in normal subtraction)
 	c.setFlag('Z', (res&0x00FF) == 0)
 	c.setFlag('N', res&0x0080 != 0)
-	
+
 	c.X = byte(res & 0x00FF)
 	return 0
 }
@@ -975,7 +969,7 @@ func (c *CPU) alr() byte {
 
 func (c *CPU) ror() byte {
 	c.fetch()
-	temp := uint16(c.fetched) >> 1 | uint16(c.getFlag('C'))<<7
+	temp := uint16(c.fetched)>>1 | uint16(c.getFlag('C'))<<7
 	c.setFlag('C', c.fetched&1 != 0)
 	c.setFlag('Z', (temp&0x00FF) == 0)
 	c.setFlag('N', temp&0x0080 != 0)
@@ -1009,10 +1003,10 @@ func (c *CPU) arr() byte {
 		c.setFlag('Z', postRorA == 0)
 
 		// V flag: V = (t ^ A_post_ror) & 0x40 (bit 6)
-		c.setFlag('V', ((t ^ postRorA) & 0x40) != 0)
+		c.setFlag('V', ((t^postRorA)&0x40) != 0)
 
 		// BCD "fixup" for low nybble and high nybble
-		AL := t & 0x0F // Low nybble of 't' (A & M)
+		AL := t & 0x0F        // Low nybble of 't' (A & M)
 		AH := (t >> 4) & 0x0F // High nybble of 't' (A & M)
 
 		finalA := postRorA // Start with post-ROR A for BCD adjustments
@@ -1037,9 +1031,9 @@ func (c *CPU) arr() byte {
 
 	} else { // Binary mode (D flag clear)
 		// ROR operation
-		oldC := origC // C flag at start of instruction
+		oldC := origC                   // C flag at start of instruction
 		c.setFlag('C', (c.A>>6)&1 != 0) // C is bit 6 of A after ROR
-		c.A = (c.A >> 1) | (oldC << 7) // Shift A right, old C to bit 7
+		c.A = (c.A >> 1) | (oldC << 7)  // Shift A right, old C to bit 7
 
 		// Update N, Z flags based on new A
 		c.setFlag('Z', c.A == 0)
@@ -1053,7 +1047,7 @@ func (c *CPU) arr() byte {
 
 func (c *CPU) rol() byte {
 	c.fetch()
-	temp := uint16(c.fetched) << 1 | uint16(c.getFlag('C'))
+	temp := uint16(c.fetched)<<1 | uint16(c.getFlag('C'))
 	c.setFlag('C', temp > 0xFF)
 	c.setFlag('Z', (temp&0x00FF) == 0)
 	c.setFlag('N', temp&0x0080 != 0)
@@ -1128,7 +1122,7 @@ func (c *CPU) rra() byte {
 
 	c.setFlag('C', res > 255)
 	c.setFlag('Z', (res&0x00FF) == 0)
-	c.setFlag('V', ((uint16(c.A) ^ res) & (adcVal ^ res)) & 0x0080 != 0)
+	c.setFlag('V', ((uint16(c.A)^res)&(adcVal^res))&0x0080 != 0)
 	c.setFlag('N', res&0x80 != 0)
 	c.A = byte(res & 0x00FF)
 	return 0
@@ -1306,8 +1300,8 @@ func (c *CPU) nop() byte {
 }
 
 func (c *CPU) dope() byte {
-    c.fetch() // Fetch the operand, but do nothing with it
-    return 0
+	c.fetch() // Fetch the operand, but do nothing with it
+	return 0
 }
 
 func (c *CPU) bit() byte {

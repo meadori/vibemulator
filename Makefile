@@ -3,9 +3,14 @@ GO_BINARY = vibemulator
 GO_SOURCES = $(wildcard *.go) $(wildcard **/*.go)
 GO_PACKAGES = ./...
 
-.PHONY: all build run test clean deps check_go_version
+.PHONY: all build run test clean deps check_go_version fmt
 
 all: build
+
+fmt:
+	@echo "Formatting code..."
+	@go fmt $(GO_PACKAGES)
+
 
 build: deps
 	@echo "Building $(GO_BINARY)..."

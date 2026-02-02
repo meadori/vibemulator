@@ -21,7 +21,6 @@ func (b *mockBus) Write(addr uint16, data byte) {
 	b.Ram[addr] = data // Use Ram
 }
 
-
 func main() {
 	romPath := "nestest/testdata/nestest.nes" // Hardcoded path
 
@@ -75,7 +74,7 @@ func main() {
 	// state *after* the JMP would have completed and *before* the first LDX #$00 is logged.
 	// The golden log shows the first LDX #$00 at C000 (which we interpret as C5F5 in our ROM)
 	// with PPU:  0, 27 and CYC:9.
-	totalCycles := 7    // CYC:7 before first instruction
+	totalCycles := 7     // CYC:7 before first instruction
 	totalPpuCycles := 21 // PPU:  0, 21 before first instruction
 
 	// Loop and execute instructions, logging state
@@ -93,7 +92,7 @@ func main() {
 			// Read opcode and instruction details for logging
 			opcodeToLog := mockBus.Read(pcToLog)
 			instrToLog := c.Lookup[opcodeToLog]
-			
+
 			// Construct the instruction and operand part of the log line for formatting
 			opCodeAndOperandsRawPadded := ""
 			operand1 := byte(0)
@@ -115,21 +114,33 @@ func main() {
 			// Construct the instruction disassembly string
 			instructionDisassembly := ""
 			switch instrToLog.AddrModeName {
-			case "imp": instructionDisassembly = fmt.Sprintf("%s", instrToLog.Name)
-			case "imm": instructionDisassembly = fmt.Sprintf("%s #$%02X", instrToLog.Name, operand1)
-			case "zp0": instructionDisassembly = fmt.Sprintf("%s $%02X", instrToLog.Name, operand1)
-			case "zpx": instructionDisassembly = fmt.Sprintf("%s $%02X,X", instrToLog.Name, operand1)
-			case "zpy": instructionDisassembly = fmt.Sprintf("%s $%02X,Y", instrToLog.Name, operand1)
+			case "imp":
+				instructionDisassembly = fmt.Sprintf("%s", instrToLog.Name)
+			case "imm":
+				instructionDisassembly = fmt.Sprintf("%s #$%02X", instrToLog.Name, operand1)
+			case "zp0":
+				instructionDisassembly = fmt.Sprintf("%s $%02X", instrToLog.Name, operand1)
+			case "zpx":
+				instructionDisassembly = fmt.Sprintf("%s $%02X,X", instrToLog.Name, operand1)
+			case "zpy":
+				instructionDisassembly = fmt.Sprintf("%s $%02X,Y", instrToLog.Name, operand1)
 			case "rel":
 				targetAddr := (pcToLog + uint16(2) + uint16(int8(operand1))) & 0xFFFF
 				instructionDisassembly = fmt.Sprintf("%s $%04X", instrToLog.Name, targetAddr)
-			case "abs": instructionDisassembly = fmt.Sprintf("%s $%04X", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
-			case "abx": instructionDisassembly = fmt.Sprintf("%s $%04X,X", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
-			case "aby": instructionDisassembly = fmt.Sprintf("%s $%04X,Y", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
-			case "ind": instructionDisassembly = fmt.Sprintf("%s ($%04X)", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
-			case "izx": instructionDisassembly = fmt.Sprintf("%s ($%02X,X)", instrToLog.Name, operand1)
-			case "izy": instructionDisassembly = fmt.Sprintf("%s ($%02X),Y", instrToLog.Name, operand1)
-			default: instructionDisassembly = fmt.Sprintf("%s ???", instrToLog.Name)
+			case "abs":
+				instructionDisassembly = fmt.Sprintf("%s $%04X", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
+			case "abx":
+				instructionDisassembly = fmt.Sprintf("%s $%04X,X", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
+			case "aby":
+				instructionDisassembly = fmt.Sprintf("%s $%04X,Y", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
+			case "ind":
+				instructionDisassembly = fmt.Sprintf("%s ($%04X)", instrToLog.Name, (uint16(operand2)<<8)|uint16(operand1))
+			case "izx":
+				instructionDisassembly = fmt.Sprintf("%s ($%02X,X)", instrToLog.Name, operand1)
+			case "izy":
+				instructionDisassembly = fmt.Sprintf("%s ($%02X),Y", instrToLog.Name, operand1)
+			default:
+				instructionDisassembly = fmt.Sprintf("%s ???", instrToLog.Name)
 			}
 
 			// Final log line construction
@@ -138,8 +149,8 @@ func main() {
 				opCodeAndOperandsRawPadded,
 				instructionDisassembly,
 				aToLog, xToLog, yToLog, pToLog, spToLog,
-				totalPpuCycles / 341,
-				totalPpuCycles % 341,
+				totalPpuCycles/341,
+				totalPpuCycles%341,
 				totalCycles,
 			)
 

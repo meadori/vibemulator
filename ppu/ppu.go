@@ -48,10 +48,10 @@ type PPU struct {
 	bgNextTileMSB      byte
 
 	// Sprite rendering
-	spriteScanline []spriteInfo
-	spriteZeroHit  bool
-	spriteZero     bool
-	spriteEvalCycle int
+	spriteScanline    []spriteInfo
+	spriteZeroHit     bool
+	spriteZero        bool
+	spriteEvalCycle   int
 	sprite0InScanline bool
 	spriteCount       byte
 }
@@ -131,7 +131,7 @@ func (p *PPU) Clock() {
 	if p.cart == nil {
 		return
 	}
-	renderingEnabled := (p.Mask & 0x08) != 0 || (p.Mask & 0x10) != 0 // Check if background or sprites are enabled
+	renderingEnabled := (p.Mask&0x08) != 0 || (p.Mask&0x10) != 0 // Check if background or sprites are enabled
 
 	if p.Scanline == -1 && p.Cycle == 339 && renderingEnabled && p.FrameCounter%2 == 1 {
 		// On odd frames, last cycle of pre-render scanline (339, 1-indexed) is skipped if rendering is enabled.
@@ -189,7 +189,7 @@ func (p *PPU) Clock() {
 			p.spriteScanline = p.spriteScanline[:0]
 			p.spriteCount = 0
 			p.sprite0InScanline = false
-			p.oamAddr = 0 // OAMADDR is set to 0 at dot 257 of each scanline if rendering is enabled.
+			p.oamAddr = 0    // OAMADDR is set to 0 at dot 257 of each scanline if rendering is enabled.
 			p.Status &= 0xDF // Clear Sprite Overflow flag ($2002 bit 5)
 		}
 
@@ -197,7 +197,7 @@ func (p *PPU) Clock() {
 
 		if p.Cycle >= 257 && p.Cycle <= 320 && p.Scanline >= -1 && p.Scanline < 240 {
 			oamIndex := (p.Cycle - 257) * 4 // current sprite in OAM to evaluate (0 to 63)
-			if oamIndex < 256 { // Ensure we don't go out of bounds for OAM (256 bytes)
+			if oamIndex < 256 {             // Ensure we don't go out of bounds for OAM (256 bytes)
 				y := p.oam[oamIndex]
 				id := p.oam[oamIndex+1]
 				attr := p.oam[oamIndex+2]
@@ -230,10 +230,6 @@ func (p *PPU) Clock() {
 				}
 			}
 		}
-
-
-
-
 
 		if p.Scanline == -1 && p.Cycle >= 280 && p.Cycle < 305 {
 			p.transferAddressY()
@@ -415,7 +411,7 @@ func (p *PPU) CPUWrite(addr uint16, data byte) {
 // DoOAMDMA performs OAM DMA transfer.
 func (p *PPU) DoOAMDMA(data [256]byte) {
 	for i := 0; i < 256; i++ {
-		p.oam[byte((uint16(p.oamAddr) + uint16(i)) % 256)] = data[i]
+		p.oam[byte((uint16(p.oamAddr)+uint16(i))%256)] = data[i]
 	}
 }
 
@@ -488,8 +484,6 @@ func (p *PPU) transferAddressY() {
 	}
 }
 
-
-
 func (p *PPU) renderPixel() {
 
 	var bgPixel byte
@@ -500,8 +494,6 @@ func (p *PPU) renderPixel() {
 
 	var p1, p2, a1, a2 bool // Declared outside the if block
 
-
-
 	if (p.Mask & 0x08) != 0 {
 
 		mux = 0x8000 >> p.fineX
@@ -511,8 +503,6 @@ func (p *PPU) renderPixel() {
 		p2 = (p.bgPatternShifterHi & uint16(mux)) > 0
 
 		bgPixel = (boolToByte(p2) << 1) | boolToByte(p1)
-
-
 
 		a1 = (p.bgAttribShifterLo & uint16(mux)) > 0
 

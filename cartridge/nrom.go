@@ -61,7 +61,7 @@ func (n *nrom) PPUMapWrite(addr uint16, data byte) bool {
 	if addr >= 0x0000 && addr <= 0x1FFF {
 		// Only allow writes if it's CHR-RAM (CHR-ROM is read-only).
 		// We're assuming if CHRROM len is 8192, it's CHR-RAM (based on cartridge.go allocating 8192 bytes for CHR-RAM).
-		if len(n.chrROM) == 8192 { 
+		if len(n.chrROM) == 8192 {
 			n.chrROM[addr] = data
 			return true
 		}
