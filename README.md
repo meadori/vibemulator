@@ -1,6 +1,19 @@
 # vibemulator
 
-An NES emulator written in Go.
+<p align="center">
+  <img src="logo.png" alt="vibemulator logo" width="200"/>
+</p>
+
+An NES emulator written in Go, developed with the assistance of the Gemini CLI coding agent.
+
+## Features
+
+*   **CPU:** Emulates the Ricoh 2A03 processor, including all official opcodes.
+*   **PPU:** Renders graphics with support for background and sprite rendering.
+*   **APU:** Basic audio processing for pulse, triangle, noise, and DMC channels.
+*   **Controllers:** Keyboard input for one controller.
+*   **Mappers:** Supports NROM (Mapper 0) and MMC1 (Mapper 1) cartridges.
+*   **UI:** A simple menu allows for loading ROMs, resetting the console, and exiting the emulator.
 
 ## Building
 
@@ -14,10 +27,14 @@ The `make build` command will also ensure all Go module dependencies are downloa
 
 ## Running
 
-To run the emulator, you will need a `.nes` ROM file.
+To run the emulator, you can optionally provide a `.nes` ROM file as a command-line argument. If no ROM is provided, you can load one via the "LOAD" button in the menu.
 
 ```bash
+# With a ROM file
 make run ROM_FILE=/path/to/your/rom.nes
+
+# Without a ROM file
+make run
 ```
 
 Replace `/path/to/your/rom.nes` with the actual path to your ROM file.
@@ -37,3 +54,7 @@ To remove build artifacts and clear Go cache:
 ```bash
 make clean
 ```
+
+## Development
+
+This project was developed entirely using the Gemini CLI coding agent, an experimental tool from Google. The agent was responsible for writing, debugging, and committing the code based on high-level user prompts.
