@@ -58,3 +58,7 @@ make clean
 ## Development
 
 This project was developed entirely using the Gemini CLI coding agent, an experimental tool from Google. The agent was responsible for writing, debugging, and committing the code based on high-level user prompts.
+
+### Development Conventions
+
+- **Code Formatting:** Always run `make fmt` before committing to ensure consistent code style.

@@ -5,7 +5,7 @@ GO_PACKAGES = ./...
 
 .PHONY: all build run test clean deps check_go_version fmt
 
-all: build
+all: build fmt
 
 fmt:
 	@echo "Formatting code..."

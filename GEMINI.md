@@ -42,6 +42,7 @@ make nestest
 ## Development Conventions
 
 - **Verify and Test:** After each code modification, verify the build by running `make build`. If the build is successful, run the tests by running `make test` to ensure that the changes haven't introduced any regressions.
+- **Code Formatting:** Always run `make fmt` before committing to ensure consistent code style.
 
 ## Go Version
 The project is developed with Go version `1.25.5`. It is recommended to use this version to avoid potential build or compatibility issues.
