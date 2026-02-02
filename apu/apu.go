@@ -654,7 +654,9 @@ func (p *PulseChannel) cpuWrite(addr uint16, data byte) {
 		p.timer = (p.timer & 0xFF00) | uint16(data)
 	case 0x4003:
 		p.timer = (p.timer & 0x00FF) | (uint16(data&0x07) << 8)
-		p.lengthCounter = lengthCounterTable[(data>>3)&0x1F]
+		if p.enabled {
+			p.lengthCounter = lengthCounterTable[(data>>3)&0x1F]
+		}
 		p.dutySequencer = 0 // Reset phase
 		p.envelopeStartFlag = true
 	}
@@ -671,7 +673,9 @@ func (t *TriangleChannel) cpuWrite(addr uint16, data byte) {
 		t.timer = (t.timer & 0xFF00) | uint16(data)
 	case 0x400B:
 		t.timer = (t.timer & 0x00FF) | (uint16(data&0x07) << 8)
-		t.lengthCounter = lengthCounterTable[(data>>3)&0x1F]
+		if t.enabled {
+			t.lengthCounter = lengthCounterTable[(data>>3)&0x1F]
+		}
 		t.linearCounterReloadFlag = true
 	}
 }
@@ -689,7 +693,9 @@ func (n *NoiseChannel) cpuWrite(addr uint16, data byte) {
 		n.mode = (data>>7)&1 == 1
 		n.timerPeriod = data & 0x0F
 	case 0x400F:
-		n.lengthCounter = lengthCounterTable[(data>>3)&0x1F]
+		if n.enabled {
+			n.lengthCounter = lengthCounterTable[(data>>3)&0x1F]
+		}
 		n.envelopeStartFlag = true
 	}
 }
