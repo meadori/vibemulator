@@ -1,7 +1,7 @@
 # vibemulator
 
 <p align="center">
-  <img src="logo.png" alt="vibemulator logo" width="200"/>
+  <img src="logo.png" alt="vibemulator logo" width="400"/>
 </p>
 
 An NES emulator written in Go, developed with the assistance of the Gemini CLI coding agent.
