@@ -137,3 +137,7 @@ func (b *Bus) Write(addr uint16, data byte) {
 func (b *Bus) SetController1State(buttons [8]bool) {
 	b.joy1.SetButtons(buttons)
 }
+
+func (b *Bus) Reset() {
+	b.cpu.Reset()
+}
