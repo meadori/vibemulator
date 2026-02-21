@@ -65,6 +65,14 @@ type Display struct {
 	staticPix      []byte
 	scanlineImage  *ebiten.Image
 	currentButtons [8]bool
+
+	// PPU Debugger
+	showDebug    bool
+	debugPalette byte
+	pt0Image     *ebiten.Image
+	pt1Image     *ebiten.Image
+	pt0Pix       []byte
+	pt1Pix       []byte
 }
 
 // New creates a new Display instance.
@@ -111,6 +119,10 @@ func New(b *bus.Bus, srv *server.GRPCServer, recFile *os.File) *Display {
 		staticImage:   staticImg,
 		staticPix:     staticPix,
 		scanlineImage: scanImg,
+		pt0Image:      ebiten.NewImage(128, 128),
+		pt1Image:      ebiten.NewImage(128, 128),
+		pt0Pix:        make([]byte, 128*128*4),
+		pt1Pix:        make([]byte, 128*128*4),
 	}
 }
 
@@ -215,6 +227,14 @@ func (d *Display) Update() error {
 		} else {
 			log.Println("State loaded successfully.")
 		}
+	}
+
+	// Debugger Toggles
+	if inpututil.IsKeyJustPressed(ebiten.KeyTab) {
+		d.showDebug = !d.showDebug
+	}
+	if d.showDebug && inpututil.IsKeyJustPressed(ebiten.KeyP) {
+		d.debugPalette = (d.debugPalette + 1) % 8
 	}
 
 	// Poll controller input (Logical OR local input and remote network input)
@@ -360,6 +380,44 @@ func (d *Display) Draw(screen *ebiten.Image) {
 		logOp.ColorScale.ScaleWithColor(color.RGBA{220, 50, 50, 255})
 		screen.DrawImage(logoImg, logOp)
 	}
+
+	// Draw PPU Debug Overlay
+	if d.showDebug {
+		d.drawPPUDebugOverlay(screen)
+	}
+}
+
+func (d *Display) drawPPUDebugOverlay(screen *ebiten.Image) {
+	// Darken background
+	vector.DrawFilledRect(screen, 0, 0, float32(ScaledWidth()), float32(ScaledHeight()), color.RGBA{0, 0, 0, 220}, false)
+
+	if !d.bus.HasCartridge() {
+		ebitenutil.DebugPrintAt(screen, "LOAD A ROM TO VIEW PATTERN TABLES", ScaledWidth()/2-120, ScaledHeight()/2)
+		return
+	}
+
+	// Fetch pattern tables from PPU memory without triggering IRQs
+	d.bus.PPU.GetPatternTable(0, d.debugPalette, d.pt0Pix)
+	d.bus.PPU.GetPatternTable(1, d.debugPalette, d.pt1Pix)
+	d.pt0Image.WritePixels(d.pt0Pix)
+	d.pt1Image.WritePixels(d.pt1Pix)
+
+	// Draw tables scaled up
+	scale := float64(3.0)
+
+	op0 := &ebiten.DrawImageOptions{}
+	op0.GeoM.Scale(scale, scale)
+	op0.GeoM.Translate(float64(ScaledWidth())/2-(128*scale)-20, float64(ScaledHeight())/2-(64*scale))
+	screen.DrawImage(d.pt0Image, op0)
+
+	op1 := &ebiten.DrawImageOptions{}
+	op1.GeoM.Scale(scale, scale)
+	op1.GeoM.Translate(float64(ScaledWidth())/2+20, float64(ScaledHeight())/2-(64*scale))
+	screen.DrawImage(d.pt1Image, op1)
+
+	// Header/Footer text
+	info := fmt.Sprintf("PPU PATTERN VIEWER\n\nActive Palette: %d\n[P] Cycle Palette\n[TAB] Close", d.debugPalette)
+	ebitenutil.DebugPrintAt(screen, info, ScaledWidth()/2-60, 150)
 }
 
 func drawNESButton(screen *ebiten.Image, textStr string, x, y, w, h float32, isHovered, isPressed bool) {

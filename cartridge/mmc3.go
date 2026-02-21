@@ -248,3 +248,13 @@ func (m *mmc3) IRQPending() bool {
 func (m *mmc3) ClearIRQ() {
 	m.irqPending = false
 }
+
+// PPUDebugRead implements a side-effect free PPU read for the PPU Debugger overlay, skipping the A12 IRQ counter update.
+func (m *mmc3) PPUDebugRead(addr uint16) (byte, bool) {
+	if addr <= 0x1FFF {
+		bank := m.getCHRBank(addr)
+		mappedAddr := (bank * 1024) + int(addr&0x03FF)
+		return m.chrROM[mappedAddr], true
+	}
+	return 0, false
+}
