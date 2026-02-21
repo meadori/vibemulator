@@ -461,6 +461,7 @@ func (d *Display) Draw(screen *ebiten.Image) {
 		drawLogoOffset(0, 0, color.RGBA{220, 50, 50, 255})
 
 		d.drawVCRStatus(screen)
+		d.drawPixelHeart(screen)
 	}
 
 	// Draw PPU Debug Overlay
@@ -716,4 +717,50 @@ func (d *Display) drawControllerHUD(screen *ebiten.Image, offsetX float32, activ
 	drawText("STR", float64(x+160), float64(y+70), yellowOff)
 	drawText("B", float64(x+223), float64(y+80), magentaOff)
 	drawText("A", float64(x+263), float64(y+80), magentaOff)
+}
+
+func (d *Display) drawPixelHeart(screen *ebiten.Image) {
+	// 11x11 pixel-art heart, scaled by 3
+	scale := float32(3.0)
+	x, y := float32(ScaledWidth()-50), float32(10)
+
+	red := color.RGBA{220, 50, 50, 255}
+	darkRed := color.RGBA{150, 20, 20, 255}
+	white := color.RGBA{255, 255, 255, 255}
+	black := color.RGBA{0, 0, 0, 255}
+
+	drawPixel := func(px, py float32, c color.Color) {
+		vector.DrawFilledRect(screen, x+(px*scale), y+(py*scale), scale, scale, c, false)
+	}
+
+	// Classic 11x11 heart sprite data
+	// 0=Empty, 1=Black, 2=Red, 3=DarkRed, 4=White
+	sprite := [11][11]int{
+		{0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0},
+		{0, 1, 2, 4, 2, 1, 2, 2, 2, 1, 0},
+		{1, 2, 4, 2, 2, 2, 2, 2, 2, 3, 1},
+		{1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 1},
+		{1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 1},
+		{1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 1},
+		{0, 1, 2, 2, 2, 3, 3, 3, 3, 1, 0},
+		{0, 0, 1, 2, 2, 3, 3, 3, 1, 0, 0},
+		{0, 0, 0, 1, 2, 3, 3, 1, 0, 0, 0},
+		{0, 0, 0, 0, 1, 3, 1, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0},
+	}
+
+	for row := 0; row < 11; row++ {
+		for col := 0; col < 11; col++ {
+			switch sprite[row][col] {
+			case 1:
+				drawPixel(float32(col), float32(row), black)
+			case 2:
+				drawPixel(float32(col), float32(row), red)
+			case 3:
+				drawPixel(float32(col), float32(row), darkRed)
+			case 4:
+				drawPixel(float32(col), float32(row), white)
+			}
+		}
+	}
 }
