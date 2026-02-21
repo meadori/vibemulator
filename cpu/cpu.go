@@ -114,28 +114,25 @@ func (c *CPU) IRQ() {
 }
 
 func (c *CPU) processIRQ() {
-	// IRQ is ignored if Interrupt Disable flag (I) is set.
-	if c.getFlag('I') == 0 {
-		// Push PC to stack
-		c.push(byte((c.PC >> 8) & 0x00FF))
-		c.push(byte(c.PC & 0x00FF))
+	// Push PC to stack
+	c.push(byte((c.PC >> 8) & 0x00FF))
+	c.push(byte(c.PC & 0x00FF))
 
-		// Push P to stack with B (Break) flag cleared and U (Unused) flag set
-		c.setFlag('B', false) // B flag should be 0 for IRQ
-		c.setFlag('U', true)  // U flag should be 1
-		c.push(c.P)
+	// Push P to stack with B (Break) flag cleared and U (Unused) flag set
+	c.setFlag('B', false) // B flag should be 0 for IRQ
+	c.setFlag('U', true)  // U flag should be 1
+	c.push(c.P)
 
-		// Set Interrupt Disable flag
-		c.setFlag('I', true)
+	// Set Interrupt Disable flag
+	c.setFlag('I', true)
 
-		// Load PC from IRQ vector
-		c.addrAbs = 0xFFFE
-		lo := uint16(c.bus.Read(c.addrAbs))
-		hi := uint16(c.bus.Read(c.addrAbs + 1))
-		c.PC = (hi << 8) | lo
+	// Load PC from IRQ vector
+	c.addrAbs = 0xFFFE
+	lo := uint16(c.bus.Read(c.addrAbs))
+	hi := uint16(c.bus.Read(c.addrAbs + 1))
+	c.PC = (hi << 8) | lo
 
-		c.Cycles = 7 // IRQ takes 7 cycles
-	}
+	c.Cycles = 7 // IRQ takes 7 cycles
 	c.irqPending = false
 }
 
@@ -153,7 +150,7 @@ func (c *CPU) Clock() {
 	if c.Cycles == 0 {
 		if c.nmiPending {
 			c.processNMI()
-		} else if c.irqPending {
+		} else if c.irqPending && c.getFlag('I') == 0 {
 			c.processIRQ()
 		} else {
 			c.opcode = c.bus.Read(c.PC)
