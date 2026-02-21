@@ -487,17 +487,17 @@ func (d *Display) drawVCRStatus(screen *ebiten.Image) {
 	rom := d.romName
 	if rom == "" {
 		rom = "NO CARTRIDGE"
-	} else if len(rom) > 15 {
-		rom = rom[:12] + "..."
+	} else if len(rom) > 22 {
+		rom = rom[:19] + "..."
 	}
 
 	statsText := fmt.Sprintf(
-		"+-------------------------+\n"+
-			"| VCR    : %-14s |\n"+
-			"| ROM    : %-14s |\n"+
-			"| UPTIME : %02d:%02d:%02d       |\n"+
-			"| SYSTEM : NTSC / 60Hz    |\n"+
-			"+-------------------------+", vcrState, rom, h, m, s)
+		"+---------------------------------+\n"+
+			"| VCR    : %-22s |\n"+
+			"| ROM    : %-22s |\n"+
+			"| UPTIME : %02d:%02d:%02d               |\n"+
+			"| SYSTEM : NTSC / 60Hz            |\n"+
+			"+---------------------------------+", vcrState, rom, h, m, s)
 
 	// Draw the text
 	op := &ebiten.DrawImageOptions{}
@@ -511,7 +511,7 @@ func (d *Display) drawVCRStatus(screen *ebiten.Image) {
 
 	// Ebitenutil doesn't natively support scaling color directly to screen.
 	// We'll draw to an image buffer first.
-	img := ebiten.NewImage(300, 120)
+	img := ebiten.NewImage(400, 150)
 	ebitenutil.DebugPrintAt(img, statsText, 0, 0)
 	screen.DrawImage(img, op)
 }
