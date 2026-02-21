@@ -75,6 +75,10 @@ type Display struct {
 	pt1Image     *ebiten.Image
 	pt0Pix       []byte
 	pt1Pix       []byte
+
+	// Rewind Engine
+	rewindBuffer []bus.State
+	frameCount   int
 }
 
 // New creates a new Display instance.
@@ -125,6 +129,7 @@ func New(b *bus.Bus, srv *server.GRPCServer, recFile *os.File) *Display {
 		pt1Image:      ebiten.NewImage(128, 128),
 		pt0Pix:        make([]byte, 128*128*4),
 		pt1Pix:        make([]byte, 128*128*4),
+		rewindBuffer:  make([]bus.State, 0, 1000), // Pre-allocate up to 1000 states (~16 seconds of rewind if sampled every frame)
 	}
 }
 
@@ -239,6 +244,38 @@ func (d *Display) Update() error {
 	}
 	if d.showDebug && inpututil.IsKeyJustPressed(ebiten.KeyP) {
 		d.debugPalette = (d.debugPalette + 1) % 8
+	}
+
+	// Rewind Engine (Prince of Persia style)
+	// If holding Backspace, reverse time. Otherwise, record time.
+	isRewinding := ebiten.IsKeyPressed(ebiten.KeyBackspace)
+
+	if isRewinding && len(d.rewindBuffer) > 0 {
+		// Pop the last saved state off the end of the buffer
+		lastState := d.rewindBuffer[len(d.rewindBuffer)-1]
+		d.rewindBuffer = d.rewindBuffer[:len(d.rewindBuffer)-1]
+
+		// Load it instantly into the bus
+		d.bus.LoadStateFromMemory(lastState)
+
+		// Skip normal clocking while rewinding so time moves backward
+		return nil
+	}
+
+	if !isRewinding && d.bus.HasCartridge() {
+		// Only capture a snapshot every 2nd frame (reduces memory usage and doubles rewind duration)
+		if d.frameCount%2 == 0 {
+			state := d.bus.SaveStateToMemory()
+			d.rewindBuffer = append(d.rewindBuffer, state)
+
+			// Cap the rewind buffer to 600 states (~20 seconds of gameplay history)
+			if len(d.rewindBuffer) > 600 {
+				// Shift the slice left, discarding the oldest state
+				copy(d.rewindBuffer, d.rewindBuffer[1:])
+				d.rewindBuffer = d.rewindBuffer[:len(d.rewindBuffer)-1]
+			}
+		}
+		d.frameCount++
 	}
 
 	// Poll controller input (Logical OR local input and remote network input)

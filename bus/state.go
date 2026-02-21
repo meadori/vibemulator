@@ -19,6 +19,35 @@ type State struct {
 	Cartridge    cartridge.State
 }
 
+// SaveStateToMemory creates and returns a complete snapshot of the emulator state in memory.
+func (b *Bus) SaveStateToMemory() State {
+	s := State{
+		Ram:          b.ram,
+		SystemClocks: b.SystemClocks,
+		CPU:          b.cpu.SaveState(),
+		PPU:          b.PPU.SaveState(),
+		APU:          b.APU.SaveState(),
+	}
+
+	if b.cart != nil {
+		s.Cartridge = b.cart.SaveState()
+	}
+	return s
+}
+
+// LoadStateFromMemory instantly overwrites the emulator state with a previously saved memory snapshot.
+func (b *Bus) LoadStateFromMemory(s State) {
+	b.ram = s.Ram
+	b.SystemClocks = s.SystemClocks
+	b.cpu.LoadState(s.CPU)
+	b.PPU.LoadState(s.PPU)
+	b.APU.LoadState(s.APU)
+
+	if b.cart != nil {
+		b.cart.LoadState(s.Cartridge)
+	}
+}
+
 // SaveState saves the entire emulator state to a file.
 func (b *Bus) SaveState(filename string) error {
 	file, err := os.Create(filename)

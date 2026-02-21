@@ -47,6 +47,9 @@ make run ROM_FILE=/path/to/rom.nes
 - **F5:** Save State to `vibemulator.sav`
 - **F7:** Load State from `vibemulator.sav`
 
+### Time Rewind
+- **Backspace:** Hold down to instantly reverse gameplay in real-time. Release to resume playing from the newly rewound point! (Buffer holds roughly 20 seconds of history).
+
 ### Debugger
 - **Tab:** Toggle PPU Pattern Table Viewer
 - **P:** Cycle active palette (0-7) when the Viewer is open
