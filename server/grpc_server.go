@@ -17,6 +17,7 @@ type EmuInterface interface {
 	Read(addr uint16) byte
 	GetFramePixels() []byte
 	LoadState(filename string) error
+	Reset()
 }
 
 // GRPCServer manages the network controller connections
@@ -82,6 +83,20 @@ func (s *GRPCServer) LoadState(ctx context.Context, in *api.StateRequest) (*api.
 	if err := bus.LoadState(in.Filename); err != nil {
 		return nil, fmt.Errorf("failed to load state: %v", err)
 	}
+	return &api.Empty{}, nil
+}
+
+// ResetSystem triggers a hardware reset of the NES, returning to the title screen
+func (s *GRPCServer) ResetSystem(ctx context.Context, in *api.Empty) (*api.Empty, error) {
+	s.mu.Lock()
+	bus := s.emuBus
+	s.mu.Unlock()
+
+	if bus == nil {
+		return nil, fmt.Errorf("emulator bus not connected")
+	}
+
+	bus.Reset()
 	return &api.Empty{}, nil
 }
 

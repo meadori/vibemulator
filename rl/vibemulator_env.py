@@ -26,9 +26,10 @@ class VibemulatorEnv(gym.Env):
         self.host = host
         self.state_file = state_file
 
-        # We define a discrete action space for typical NES button combinations
-        # 0: NOOP, 1: Right, 2: Right+A, 3: Right+B, 4: Right+A+B, 5: Left, 6: A, 7: B
-        self.action_space = spaces.Discrete(8)
+        # We define a discrete action space covering the full NES controller
+        # 0: NOOP, 1: Right, 2: Right+A, 3: Right+B, 4: Right+A+B, 5: Left, 6: Left+A, 
+        # 7: Left+B, 8: Left+A+B, 9: Up, 10: Down, 11: A, 12: B, 13: Start, 14: Select
+        self.action_space = spaces.Discrete(15)
 
         # Observation space: 256x240 RGB image
         self.observation_space = spaces.Box(low=0, high=255,
@@ -59,8 +60,15 @@ class VibemulatorEnv(gym.Env):
         elif action == 3: state.right = True; state.b = True
         elif action == 4: state.right = True; state.a = True; state.b = True
         elif action == 5: state.left = True
-        elif action == 6: state.a = True
-        elif action == 7: state.b = True
+        elif action == 6: state.left = True; state.a = True
+        elif action == 7: state.left = True; state.b = True
+        elif action == 8: state.left = True; state.a = True; state.b = True
+        elif action == 9: state.up = True
+        elif action == 10: state.down = True
+        elif action == 11: state.a = True
+        elif action == 12: state.b = True
+        elif action == 13: state.start = True
+        elif action == 14: state.select = True
         return state
 
     def step(self, action):
@@ -88,8 +96,16 @@ class VibemulatorEnv(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         
-        # Load a specific emulator save state (e.g. bypassing the title screen)
-        if self.state_file:
+        # Reset the physical NES console (back to the title screen)
+        if not self.state_file:
+            try:
+                self.stub.ResetSystem(controller_pb2.Empty())
+                # Sleep a bit to let the console reboot
+                time.sleep(1/10.0) 
+            except grpc.RpcError as e:
+                print(f"Failed to reset system: {e}")
+        else:
+            # Load a specific emulator save state
             try:
                 self.stub.LoadState(controller_pb2.StateRequest(filename=self.state_file))
                 # Give emulator a frame to process the load

@@ -368,7 +368,7 @@ const file_api_controller_proto_rawDesc = "" +
 	"\aaddress\x18\x01 \x01(\rR\aaddress\"$\n" +
 	"\x0eMemoryResponse\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\rR\x04data\"\a\n" +
-	"\x05Empty2\xda\x01\n" +
+	"\x05Empty2\x83\x02\n" +
 	"\x11ControllerService\x120\n" +
 	"\vStreamInput\x12\x0f.api.InputState\x1a\n" +
 	".api.Empty\"\x00(\x010\x01\x12,\n" +
@@ -377,6 +377,9 @@ const file_api_controller_proto_rawDesc = "" +
 	"\n" +
 	"ReadMemory\x12\x12.api.MemoryRequest\x1a\x13.api.MemoryResponse\"\x00\x12,\n" +
 	"\tLoadState\x12\x11.api.StateRequest\x1a\n" +
+	".api.Empty\"\x00\x12'\n" +
+	"\vResetSystem\x12\n" +
+	".api.Empty\x1a\n" +
 	".api.Empty\"\x00B$Z\"github.com/meadori/vibemulator/apib\x06proto3"
 
 var (
@@ -405,12 +408,14 @@ var file_api_controller_proto_depIdxs = []int32{
 	5, // 1: api.ControllerService.GetFrame:input_type -> api.Empty
 	3, // 2: api.ControllerService.ReadMemory:input_type -> api.MemoryRequest
 	0, // 3: api.ControllerService.LoadState:input_type -> api.StateRequest
-	5, // 4: api.ControllerService.StreamInput:output_type -> api.Empty
-	2, // 5: api.ControllerService.GetFrame:output_type -> api.FrameResponse
-	4, // 6: api.ControllerService.ReadMemory:output_type -> api.MemoryResponse
-	5, // 7: api.ControllerService.LoadState:output_type -> api.Empty
-	4, // [4:8] is the sub-list for method output_type
-	0, // [0:4] is the sub-list for method input_type
+	5, // 4: api.ControllerService.ResetSystem:input_type -> api.Empty
+	5, // 5: api.ControllerService.StreamInput:output_type -> api.Empty
+	2, // 6: api.ControllerService.GetFrame:output_type -> api.FrameResponse
+	4, // 7: api.ControllerService.ReadMemory:output_type -> api.MemoryResponse
+	5, // 8: api.ControllerService.LoadState:output_type -> api.Empty
+	5, // 9: api.ControllerService.ResetSystem:output_type -> api.Empty
+	5, // [5:10] is the sub-list for method output_type
+	0, // [0:5] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name

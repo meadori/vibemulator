@@ -108,7 +108,7 @@ def optimize_model(policy_net, target_net, memory, optimizer):
 
 def main():
     print(f"Using device: {device}")
-    env = VibemulatorEnv(state_file='vibemulator.sav')
+    env = VibemulatorEnv()
     
     # Gym environments return [H, W, C], PyTorch CNNs expect [C, H, W]
     init_screen, _ = env.reset()

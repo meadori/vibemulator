@@ -17,6 +17,9 @@ service ControllerService {
 
   // Loads an emulator save state from a file, bypassing the title screen
   rpc LoadState(StateRequest) returns (Empty) {}
+
+  // Triggers a hardware reset of the NES (returns game to title screen)
+  rpc ResetSystem(Empty) returns (Empty) {}
 }
 
 message StateRequest {
