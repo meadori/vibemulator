@@ -508,12 +508,10 @@ func (d *Display) drawVCRStatus(screen *ebiten.Image) {
 	}
 
 	statsText := fmt.Sprintf(
-		"+---------------------------------+\n"+
-			"| VCR    : %-22s |\n"+
-			"| ROM    : %-22s |\n"+
-			"| UPTIME : %02d:%02d:%02d               |\n"+
-			"| SYSTEM : NTSC / 60Hz            |\n"+
-			"+---------------------------------+", vcrState, rom, h, m, s)
+		" VCR    : %-22s \n"+
+			" ROM    : %-22s \n"+
+			" UPTIME : %02d:%02d:%02d               \n"+
+			" SYSTEM : NTSC / 60Hz            ", vcrState, rom, h, m, s)
 
 	// Draw the text
 	op := &ebiten.DrawImageOptions{}
@@ -525,10 +523,17 @@ func (d *Display) drawVCRStatus(screen *ebiten.Image) {
 	// VCR Green
 	op.ColorScale.ScaleWithColor(color.RGBA{50, 255, 50, 255})
 
-	// Ebitenutil doesn't natively support scaling color directly to screen.
-	// We'll draw to an image buffer first.
-	img := ebiten.NewImage(400, 150)
-	ebitenutil.DebugPrintAt(img, statsText, 0, 0)
+	// Box dimensions: 33 chars wide * 6px = 198, plus some padding
+	w, h_box := float32(210), float32(75)
+	img := ebiten.NewImage(int(w), int(h_box))
+
+	// Fill background slightly dark for readability
+	vector.DrawFilledRect(img, 0, 0, w, h_box, color.RGBA{0, 0, 0, 180}, false)
+
+	// Draw DOS-style border
+	vector.StrokeRect(img, 1, 1, w-2, h_box-2, 2, color.White, false)
+
+	ebitenutil.DebugPrintAt(img, statsText, 6, 6)
 	screen.DrawImage(img, op)
 }
 func (d *Display) drawPPUDebugOverlay(screen *ebiten.Image) {
