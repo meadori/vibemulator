@@ -594,7 +594,7 @@ func drawNESButton(screen *ebiten.Image, textStr string, x, y, w, h float32, isH
 	textW := float32(len(textStr) * 6 * 2)
 	textH := float32(16 * 2)
 	textX := x + (w-textW)/2
-	textY := y + (h-textH)/2 + 4 // slight downward offset for debug font
+	textY := y + (h-textH)/2 + 2 // slight downward offset for debug font
 
 	if isPressed {
 		textX += 2
