@@ -496,57 +496,83 @@ func (d *Display) drawControllerHUD(screen *ebiten.Image) {
 	x := float32(bezelWidth*scalingFactor)/2 - hudWidth/2
 	y := float32(gameScreenY*scalingFactor) + float32(gameScreenHeight*scalingFactor) + 310
 
-	// Base shell (light grey)
-	vector.DrawFilledRect(screen, x, y, hudWidth, hudHeight, color.RGBA{180, 180, 180, 255}, false)
+	// Synthwave Neon Colors
+	gridColor := color.RGBA{100, 0, 200, 60}
+	outerBox := color.RGBA{150, 0, 255, 150}
 
-	// Inner recessed area (slightly darker grey instead of black stripe)
-	vector.DrawFilledRect(screen, x+10, y+10, hudWidth-20, hudHeight-20, color.RGBA{160, 160, 160, 255}, false)
+	cyanOn := color.RGBA{0, 255, 255, 255}
+	cyanOff := color.RGBA{0, 100, 100, 255}
+	yellowOn := color.RGBA{255, 255, 0, 255}
+	yellowOff := color.RGBA{100, 100, 0, 255}
+	magentaOn := color.RGBA{255, 0, 255, 255}
+	magentaOff := color.RGBA{100, 0, 100, 255}
 
-	// D-Pad (Up=4, Down=5, Left=6, Right=7)
-	dpadX, dpadY := x+55, y+55
-	dpadColor := color.RGBA{20, 20, 20, 255}
-	hlColor := color.RGBA{130, 130, 130, 255}
+	// --- VIRTUAL GRID & BOX ---
+	// Draw grid lines
+	for i := float32(0); i <= hudWidth; i += 20 {
+		vector.StrokeLine(screen, x+i, y, x+i, y+hudHeight, 1, gridColor, false)
+	}
+	for i := float32(0); i <= hudHeight; i += 20 {
+		vector.StrokeLine(screen, x, y+i, x+hudWidth, y+i, 1, gridColor, false)
+	}
+	// Draw glowing outer box
+	vector.StrokeRect(screen, x, y, hudWidth, hudHeight, 3, outerBox, false)
+	vector.StrokeRect(screen, x+2, y+2, hudWidth-4, hudHeight-4, 1, color.RGBA{255, 255, 255, 80}, false) // Inner highlight
 
-	// Draw cross
-	vector.DrawFilledRect(screen, dpadX-12, dpadY-35, 24, 70, dpadColor, false) // Vert
-	vector.DrawFilledRect(screen, dpadX-35, dpadY-12, 70, 24, dpadColor, false) // Horiz
-
-	// D-Pad Highlights
-	if d.currentButtons[4] { // Up
-		vector.DrawFilledRect(screen, dpadX-12, dpadY-35, 24, 25, hlColor, false)
-	}
-	if d.currentButtons[5] { // Down
-		vector.DrawFilledRect(screen, dpadX-12, dpadY+10, 24, 25, hlColor, false)
-	}
-	if d.currentButtons[6] { // Left
-		vector.DrawFilledRect(screen, dpadX-35, dpadY-12, 25, 24, hlColor, false)
-	}
-	if d.currentButtons[7] { // Right
-		vector.DrawFilledRect(screen, dpadX+10, dpadY-12, 25, 24, hlColor, false)
+	// Helper for Neon Rects
+	drawNeonRect := func(rx, ry, w, h float32, active bool, onColor, offColor color.Color) {
+		if active {
+			vector.DrawFilledRect(screen, rx, ry, w, h, onColor, false)
+			// Add a white core to the glow
+			vector.DrawFilledRect(screen, rx+2, ry+2, w-4, h-4, color.RGBA{255, 255, 255, 200}, false)
+		} else {
+			vector.StrokeRect(screen, rx, ry, w, h, 2, offColor, false)
+		}
 	}
 
-	// Select/Start (Select=2, Start=3)
-	selColor, startColor := color.RGBA{30, 30, 30, 255}, color.RGBA{30, 30, 30, 255}
-	if d.currentButtons[2] {
-		selColor = hlColor
-	}
-	if d.currentButtons[3] {
-		startColor = hlColor
-	}
-	// Angled pills (simulated with rectangles for now)
-	vector.DrawFilledRect(screen, x+120, y+60, 35, 12, selColor, false)
-	vector.DrawFilledRect(screen, x+170, y+60, 35, 12, startColor, false)
+	// --- D-PAD (Cyan) ---
+	dpadX, dpadY := x+60, y+55
 
-	// B/A Buttons (B=1, A=0)
-	bColor, aColor := color.RGBA{200, 0, 0, 255}, color.RGBA{200, 0, 0, 255}
-	btnHlColor := color.RGBA{255, 100, 100, 255}
-	if d.currentButtons[1] {
-		bColor = btnHlColor
+	// Draw arms individually for a hollow cross look
+	drawNeonRect(dpadX-10, dpadY-30, 20, 20, d.currentButtons[4], cyanOn, cyanOff) // Up
+	drawNeonRect(dpadX-10, dpadY+10, 20, 20, d.currentButtons[5], cyanOn, cyanOff) // Down
+	drawNeonRect(dpadX-30, dpadY-10, 20, 20, d.currentButtons[6], cyanOn, cyanOff) // Left
+	drawNeonRect(dpadX+10, dpadY-10, 20, 20, d.currentButtons[7], cyanOn, cyanOff) // Right
+	// Center square (hollow unless multiple pressed)
+	vector.StrokeRect(screen, dpadX-10, dpadY-10, 20, 20, 2, cyanOff, false)
+
+	// --- SELECT & START (Yellow) ---
+	drawNeonRect(x+130, y+55, 25, 10, d.currentButtons[2], yellowOn, yellowOff) // Select
+	drawNeonRect(x+170, y+55, 25, 10, d.currentButtons[3], yellowOn, yellowOff) // Start
+
+	// --- A & B BUTTONS (Magenta) ---
+	drawNeonCircle := func(cx, cy float32, active bool) {
+		if active {
+			vector.DrawFilledCircle(screen, cx, cy, 14, magentaOn, false)
+			vector.DrawFilledCircle(screen, cx, cy, 10, color.RGBA{255, 255, 255, 200}, false) // Core
+		} else {
+			vector.StrokeCircle(screen, cx, cy, 14, 2, magentaOff, false)
+		}
 	}
-	if d.currentButtons[0] {
-		aColor = btnHlColor
+
+	drawNeonCircle(x+230, y+60, d.currentButtons[1]) // B
+	drawNeonCircle(x+270, y+60, d.currentButtons[0]) // A
+
+	// --- NEON LABELS ---
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(1.2, 1.2)
+
+	drawText := func(text string, tx, ty float64, c color.Color) {
+		img := ebiten.NewImage(60, 16)
+		ebitenutil.DebugPrintAt(img, text, 0, 0)
+		txtOp := *op
+		txtOp.GeoM.Translate(tx, ty)
+		txtOp.ColorScale.ScaleWithColor(c)
+		screen.DrawImage(img, &txtOp)
 	}
-	// A and B buttons are horizontally aligned
-	vector.DrawFilledCircle(screen, x+230, y+65, 18, bColor, false)
-	vector.DrawFilledCircle(screen, x+275, y+65, 18, aColor, false)
+
+	drawText("SEL", float64(x+130), float64(y+70), yellowOff)
+	drawText("STR", float64(x+170), float64(y+70), yellowOff)
+	drawText("B", float64(x+225), float64(y+80), magentaOff)
+	drawText("A", float64(x+265), float64(y+80), magentaOff)
 }
