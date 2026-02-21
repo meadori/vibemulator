@@ -346,24 +346,21 @@ func (p *PulseChannel) targetPeriod() uint16 {
 }
 
 func (p *PulseChannel) clockSweep() {
-	// 1. If the divider's counter is zero, the sweep is enabled, and the shift count is non-zero, the period is updated.
-	if p.sweepCounter == 0 && p.sweepEnabled && p.sweepShift > 0 && p.timer >= 8 {
-		target := p.targetPeriod()
-		if target <= 0x7FF {
-			p.timer = target
-		}
+	// Hardware correct sweep clocking:
+	// 1. Calculate target period (handled in output() to silence instantly)
+	target := p.targetPeriod()
+
+	// 2. If the divider's counter is zero and sweep is enabled, update the period
+	if p.sweepCounter == 0 && p.sweepEnabled && p.sweepShift > 0 && p.timer >= 8 && target <= 0x7FF {
+		p.timer = target
 	}
 
-	// 2. If the divider's counter is zero or the reload flag is true, the counter is set to P. Otherwise, decremented.
+	// 3. Update the divider counter
 	if p.sweepCounter == 0 || p.sweepReloadFlag {
 		p.sweepCounter = p.sweepPeriod
+		p.sweepReloadFlag = false
 	} else {
 		p.sweepCounter--
-	}
-
-	// 3. If the reload flag is true, it is cleared.
-	if p.sweepReloadFlag {
-		p.sweepReloadFlag = false
 	}
 }
 
@@ -372,14 +369,16 @@ func (p *PulseChannel) clockEnvelope() {
 		p.envelopeStartFlag = false
 		p.envelopeCounter = 15
 		p.envelopeDivider = p.volume
-	} else if p.envelopeDivider > 0 {
-		p.envelopeDivider--
 	} else {
-		p.envelopeDivider = p.volume
-		if p.envelopeCounter > 0 {
-			p.envelopeCounter--
-		} else if p.lengthCounterHalt { // Loop enabled
-			p.envelopeCounter = 15
+		if p.envelopeDivider > 0 {
+			p.envelopeDivider--
+		} else {
+			p.envelopeDivider = p.volume
+			if p.envelopeCounter > 0 {
+				p.envelopeCounter--
+			} else if p.lengthCounterHalt { // Envelope loop flag
+				p.envelopeCounter = 15
+			}
 		}
 	}
 }
@@ -389,14 +388,16 @@ func (n *NoiseChannel) clockEnvelope() {
 		n.envelopeStartFlag = false
 		n.envelopeCounter = 15
 		n.envelopeDivider = n.volume
-	} else if n.envelopeDivider > 0 {
-		n.envelopeDivider--
 	} else {
-		n.envelopeDivider = n.volume
-		if n.envelopeCounter > 0 {
-			n.envelopeCounter--
-		} else if n.lengthCounterHalt { // Loop enabled
-			n.envelopeCounter = 15
+		if n.envelopeDivider > 0 {
+			n.envelopeDivider--
+		} else {
+			n.envelopeDivider = n.volume
+			if n.envelopeCounter > 0 {
+				n.envelopeCounter--
+			} else if n.lengthCounterHalt { // Envelope loop flag
+				n.envelopeCounter = 15
+			}
 		}
 	}
 }
