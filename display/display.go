@@ -54,7 +54,8 @@ type Display struct {
 
 	// Recording fields
 	recordFile      *os.File
-	lastButtons     [8]bool
+	lastButtonsP1   [8]bool
+	lastButtonsP2   [8]bool
 	buttonHoldCount int
 	firstFrame      bool
 
@@ -135,38 +136,22 @@ func (d *Display) loadROM(path string) {
 	d.bus.LoadCartridge(cart)
 }
 
-func (d *Display) writeRecord(frames int, b [8]bool) {
-	var btnNames []string
-	if b[0] {
-		btnNames = append(btnNames, "A")
+func (d *Display) writeRecord(frames int, p1, p2 [8]bool) {
+	formatBtns := func(b [8]bool) string {
+		var names []string
+		if b[0] { names = append(names, "A") }
+		if b[1] { names = append(names, "B") }
+		if b[2] { names = append(names, "SELECT") }
+		if b[3] { names = append(names, "START") }
+		if b[4] { names = append(names, "UP") }
+		if b[5] { names = append(names, "DOWN") }
+		if b[6] { names = append(names, "LEFT") }
+		if b[7] { names = append(names, "RIGHT") }
+		if len(names) == 0 { return "NONE" }
+		return strings.Join(names, "+")
 	}
-	if b[1] {
-		btnNames = append(btnNames, "B")
-	}
-	if b[2] {
-		btnNames = append(btnNames, "SELECT")
-	}
-	if b[3] {
-		btnNames = append(btnNames, "START")
-	}
-	if b[4] {
-		btnNames = append(btnNames, "UP")
-	}
-	if b[5] {
-		btnNames = append(btnNames, "DOWN")
-	}
-	if b[6] {
-		btnNames = append(btnNames, "LEFT")
-	}
-	if b[7] {
-		btnNames = append(btnNames, "RIGHT")
-	}
-
-	btnStr := "NONE"
-	if len(btnNames) > 0 {
-		btnStr = strings.Join(btnNames, "+")
-	}
-	fmt.Fprintf(d.recordFile, "%d %s\n", frames, btnStr)
+	
+	fmt.Fprintf(d.recordFile, "%d P1:%s P2:%s\n", frames, formatBtns(p1), formatBtns(p2))
 }
 
 // Update proceeds the game state.
@@ -281,15 +266,17 @@ func (d *Display) Update() error {
 	// Record inputs if recording is enabled
 	if d.recordFile != nil {
 		if d.firstFrame {
-			d.lastButtons = buttons
+			d.lastButtonsP1 = buttons
+			d.lastButtonsP2 = buttonsP2
 			d.buttonHoldCount = 1
 			d.firstFrame = false
 		} else {
-			if buttons == d.lastButtons {
+			if buttons == d.lastButtonsP1 && buttonsP2 == d.lastButtonsP2 {
 				d.buttonHoldCount++
 			} else {
-				d.writeRecord(d.buttonHoldCount, d.lastButtons)
-				d.lastButtons = buttons
+				d.writeRecord(d.buttonHoldCount, d.lastButtonsP1, d.lastButtonsP2)
+				d.lastButtonsP1 = buttons
+				d.lastButtonsP2 = buttonsP2
 				d.buttonHoldCount = 1
 			}
 		}
