@@ -27,7 +27,8 @@ var dmcRateTable = [16]uint16{
 
 // PulseChannel represents a single pulse wave channel.
 type PulseChannel struct {
-	enabled bool
+	enabled  bool
+	isPulse1 bool
 
 	dutyCycle         byte
 	lengthCounterHalt bool // Also envelope loop flag
@@ -153,8 +154,8 @@ type BusReader interface {
 // New creates a new APU instance.
 func New() *APU {
 	apu := &APU{
-		pulse1:       &PulseChannel{},
-		pulse2:       &PulseChannel{},
+		pulse1:       &PulseChannel{isPulse1: true},
+		pulse2:       &PulseChannel{isPulse1: false},
 		triangle:     &TriangleChannel{},
 		noise:        &NoiseChannel{},
 		dmc:          &DMCChannel{},
@@ -325,6 +326,21 @@ func (t *TriangleChannel) clockLinear() {
 	}
 }
 
+func (p *PulseChannel) targetPeriod() uint16 {
+	change := p.timer >> p.sweepShift
+	if p.sweepNegate {
+		target := int(p.timer) - int(change)
+		if p.isPulse1 {
+			target--
+		}
+		if target < 0 {
+			return 0
+		}
+		return uint16(target)
+	}
+	return p.timer + change
+}
+
 func (p *PulseChannel) clockSweep() {
 	if p.sweepReloadFlag {
 		p.sweepCounter = p.sweepPeriod
@@ -335,17 +351,10 @@ func (p *PulseChannel) clockSweep() {
 		p.sweepCounter--
 	} else {
 		p.sweepCounter = p.sweepPeriod
-		if p.sweepEnabled && p.sweepShift > 0 {
-			change := p.timer >> p.sweepShift
-			if p.sweepNegate {
-				p.timer -= change
-				if p.timer < 8 {
-					p.timer = 8
-				}
-			} else {
-				if p.timer+change < 0x7FF {
-					p.timer += change
-				}
+		if p.sweepEnabled && p.sweepShift > 0 && p.timer >= 8 {
+			target := p.targetPeriod()
+			if target <= 0x7FF {
+				p.timer = target
 			}
 		}
 	}
@@ -513,6 +522,9 @@ func (p *PulseChannel) output() byte {
 	if p.timer < 8 { // Supersonic frequencies
 		return 0
 	}
+	if p.targetPeriod() > 0x7FF { // Sweeper mutes if target > $7FF
+		return 0
+	}
 	if dutyCycles[p.dutyCycle][p.dutySequencer] == 0 {
 		return 0
 	}
@@ -603,7 +615,7 @@ func (a *APU) CPUWrite(addr uint16, data byte) {
 	case addr >= 0x4000 && addr <= 0x4003:
 		a.pulse1.cpuWrite(addr, data)
 	case addr >= 0x4004 && addr <= 0x4007:
-		a.pulse2.cpuWrite(addr&0x0003, data) // Use bitwise AND for offset
+		a.pulse2.cpuWrite(addr, data) // Use raw address, masking handled internally
 	case addr >= 0x4008 && addr <= 0x400B:
 		a.triangle.cpuWrite(addr, data)
 	case addr >= 0x400C && addr <= 0x400F:
@@ -631,22 +643,22 @@ func (a *APU) CPUWrite(addr uint16, data byte) {
 }
 
 func (p *PulseChannel) cpuWrite(addr uint16, data byte) {
-	switch addr {
-	case 0x4000:
+	switch addr & 0x0003 {
+	case 0:
 		p.dutyCycle = (data >> 6) & 0x03
 		p.lengthCounterHalt = (data>>5)&1 == 1 // Envelope loop flag
 		p.constantVolume = (data>>4)&1 == 1
 		p.volume = data & 0x0F // Also envelope period
 		p.envelopeStartFlag = true
-	case 0x4001:
+	case 1:
 		p.sweepEnabled = (data>>7)&1 == 1
 		p.sweepPeriod = (data >> 4) & 0x07
 		p.sweepNegate = (data>>3)&1 == 1
 		p.sweepShift = data & 0x07
 		p.sweepReloadFlag = true
-	case 0x4002:
+	case 2:
 		p.timer = (p.timer & 0xFF00) | uint16(data)
-	case 0x4003:
+	case 3:
 		p.timer = (p.timer & 0x00FF) | (uint16(data&0x07) << 8)
 		if p.enabled {
 			p.lengthCounter = lengthCounterTable[(data>>3)&0x1F]
