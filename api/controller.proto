@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package api;
+
+option go_package = "github.com/meadori/vibemulator/api";
+
+service ControllerService {
+  // Client streams button states to the emulator
+  rpc StreamInput(stream InputState) returns (stream Empty) {}
+}
+
+message InputState {
+  // Player 1 or 2
+  int32 player_index = 1;
+  
+  // NES Controller Buttons
+  bool a = 2;
+  bool b = 3;
+  bool select = 4;
+  bool start = 5;
+  bool up = 6;
+  bool down = 7;
+  bool left = 8;
+  bool right = 9;
+}
+
+message Empty {}

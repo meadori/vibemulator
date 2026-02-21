@@ -42,20 +42,57 @@ func New(path string) (*Cartridge, error) {
 		return nil, err
 	}
 
+	if len(data) < 16 {
+		return nil, fmt.Errorf("file is too small to be a valid NES ROM")
+	}
+
+	// Verify iNES header signature
+	if data[0] != 'N' || data[1] != 'E' || data[2] != 'S' || data[3] != 0x1A {
+		return nil, fmt.Errorf("invalid NES ROM format: missing iNES signature")
+	}
+
 	c := &Cartridge{}
 	prgRomSize := int(data[4]) * 16384
 	chrRomSize := int(data[5]) * 8192
 
-	c.PRGROM = data[16 : 16+prgRomSize]
+	// Check for presence of a trainer (Bit 2 of Flag 6)
+	hasTrainer := (data[6] & 0x04) != 0
+	offset := 16
+	if hasTrainer {
+		offset += 512
+	}
 
+	// Allocate exact expected sizes to ensure compatibility even with under-dumped ROMs
+	c.PRGROM = make([]byte, prgRomSize)
 	if chrRomSize > 0 {
-		c.CHRROM = data[16+prgRomSize : 16+prgRomSize+chrRomSize]
+		c.CHRROM = make([]byte, chrRomSize)
 		c.IsCHRRAM = false
 	} else {
-		// Allocate CHR RAM if no CHR ROM is present
-		c.CHRROM = make([]byte, 8192) // Common size for CHR RAM
+		c.CHRROM = make([]byte, 8192) // CHR RAM
 		c.IsCHRRAM = true
 	}
+
+	// Copy PRG ROM data safely
+	prgEnd := offset + prgRomSize
+	if prgEnd > len(data) {
+		prgEnd = len(data)
+	}
+	if prgEnd > offset {
+		copy(c.PRGROM, data[offset:prgEnd])
+	}
+
+	// Copy CHR ROM data safely
+	if chrRomSize > 0 {
+		chrStart := offset + prgRomSize
+		chrEnd := chrStart + chrRomSize
+		if chrStart < len(data) {
+			if chrEnd > len(data) {
+				chrEnd = len(data)
+			}
+			copy(c.CHRROM, data[chrStart:chrEnd])
+		}
+	}
+
 	mapperID := (data[6] >> 4) | (data[7] & 0xF0)
 	c.Mirror = (data[6] & 1) | ((data[6] >> 3) & 2)
 

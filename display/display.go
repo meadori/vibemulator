@@ -2,11 +2,13 @@ package display
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/color"
 	_ "image/png" // Required for PNG decoding
 	"log"
 	"os"
+	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/audio"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/meadori/vibemulator/bus"
 	"github.com/meadori/vibemulator/cartridge"
+	"github.com/meadori/vibemulator/server"
 )
 
 const (
@@ -46,10 +49,19 @@ type Display struct {
 	bezelImage      *ebiten.Image
 	menuBarVisible  bool
 	resetBlinkTimer int
+	grpcServer      *server.GRPCServer
+
+	// Recording fields
+	recordFile      *os.File
+	lastButtons     [8]bool
+	buttonHoldCount int
+	firstFrame      bool
+
+	romLoadChan chan string
 }
 
 // New creates a new Display instance.
-func New(b *bus.Bus) *Display {
+func New(b *bus.Bus, srv *server.GRPCServer, recFile *os.File) *Display {
 	audioContext := audio.NewContext(sampleRate)
 	stream := &soundStream{bus: b}
 	player, err := audioContext.NewPlayer(stream)
@@ -75,6 +87,10 @@ func New(b *bus.Bus) *Display {
 		bus:         b,
 		audioPlayer: player,
 		bezelImage:  bezelImage,
+		grpcServer:  srv,
+		recordFile:  recFile,
+		firstFrame:  true,
+		romLoadChan: make(chan string, 1),
 	}
 }
 
@@ -86,10 +102,51 @@ func (d *Display) loadROM(path string) {
 	d.bus.LoadCartridge(cart)
 }
 
+func (d *Display) writeRecord(frames int, b [8]bool) {
+	var btnNames []string
+	if b[0] {
+		btnNames = append(btnNames, "A")
+	}
+	if b[1] {
+		btnNames = append(btnNames, "B")
+	}
+	if b[2] {
+		btnNames = append(btnNames, "SELECT")
+	}
+	if b[3] {
+		btnNames = append(btnNames, "START")
+	}
+	if b[4] {
+		btnNames = append(btnNames, "UP")
+	}
+	if b[5] {
+		btnNames = append(btnNames, "DOWN")
+	}
+	if b[6] {
+		btnNames = append(btnNames, "LEFT")
+	}
+	if b[7] {
+		btnNames = append(btnNames, "RIGHT")
+	}
+
+	btnStr := "NONE"
+	if len(btnNames) > 0 {
+		btnStr = strings.Join(btnNames, "+")
+	}
+	fmt.Fprintf(d.recordFile, "%d %s\n", frames, btnStr)
+}
+
 // Update proceeds the game state.
 // Update is called every tick (1/60 [s] by default).
 func (d *Display) Update() error {
 	d.menuBarVisible = true
+
+	// Check if a ROM was selected via the async dialog
+	select {
+	case filename := <-d.romLoadChan:
+		d.loadROM(filename)
+	default:
+	}
 
 	// Handle menu clicks
 	if d.menuBarVisible && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
@@ -106,12 +163,14 @@ func (d *Display) Update() error {
 				d.resetBlinkTimer = 30 // Blink for half a second (30 frames)
 			} else if x >= 240 && x <= 320 {
 				// LOAD
-				filename, err := dialog.File().Load()
-				if err != nil {
-					log.Println(err)
-				} else {
-					d.loadROM(filename)
-				}
+				go func() {
+					filename, err := dialog.File().Load()
+					if err != nil {
+						log.Println(err)
+					} else {
+						d.romLoadChan <- filename
+					}
+				}()
 			}
 		}
 	}
@@ -120,17 +179,35 @@ func (d *Display) Update() error {
 		d.resetBlinkTimer--
 	}
 
-	// Poll controller input
+	// Poll controller input (Logical OR local input and remote network input)
+	remoteState := d.grpcServer.GetP1State()
 	buttons := [8]bool{}
-	buttons[0] = ebiten.IsKeyPressed(ebiten.KeyZ)          // A
-	buttons[1] = ebiten.IsKeyPressed(ebiten.KeyX)          // B
-	buttons[2] = ebiten.IsKeyPressed(ebiten.KeyShift)      // Select
-	buttons[3] = ebiten.IsKeyPressed(ebiten.KeyEnter)      // Start
-	buttons[4] = ebiten.IsKeyPressed(ebiten.KeyArrowUp)    // Up
-	buttons[5] = ebiten.IsKeyPressed(ebiten.KeyArrowDown)  // Down
-	buttons[6] = ebiten.IsKeyPressed(ebiten.KeyArrowLeft)  // Left
-	buttons[7] = ebiten.IsKeyPressed(ebiten.KeyArrowRight) // Right
+	buttons[0] = ebiten.IsKeyPressed(ebiten.KeyZ) || remoteState[0]          // A
+	buttons[1] = ebiten.IsKeyPressed(ebiten.KeyX) || remoteState[1]          // B
+	buttons[2] = ebiten.IsKeyPressed(ebiten.KeyShift) || remoteState[2]      // Select
+	buttons[3] = ebiten.IsKeyPressed(ebiten.KeyEnter) || remoteState[3]      // Start
+	buttons[4] = ebiten.IsKeyPressed(ebiten.KeyArrowUp) || remoteState[4]    // Up
+	buttons[5] = ebiten.IsKeyPressed(ebiten.KeyArrowDown) || remoteState[5]  // Down
+	buttons[6] = ebiten.IsKeyPressed(ebiten.KeyArrowLeft) || remoteState[6]  // Left
+	buttons[7] = ebiten.IsKeyPressed(ebiten.KeyArrowRight) || remoteState[7] // Right
 	d.bus.SetController1State(buttons)
+
+	// Record inputs if recording is enabled
+	if d.recordFile != nil {
+		if d.firstFrame {
+			d.lastButtons = buttons
+			d.buttonHoldCount = 1
+			d.firstFrame = false
+		} else {
+			if buttons == d.lastButtons {
+				d.buttonHoldCount++
+			} else {
+				d.writeRecord(d.buttonHoldCount, d.lastButtons)
+				d.lastButtons = buttons
+				d.buttonHoldCount = 1
+			}
+		}
+	}
 
 	// Run the emulator for one frame's worth of PPU cycles.
 	// 89342 PPU cycles per frame.

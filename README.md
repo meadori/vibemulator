@@ -11,33 +11,58 @@ An NES emulator written in Go, developed with the assistance of the Gemini CLI c
 *   **CPU:** Emulates the Ricoh 2A03 processor, including all official opcodes.
 *   **PPU:** Renders graphics with support for background and sprite rendering.
 *   **APU:** Basic audio processing for pulse, triangle, noise, and DMC channels.
-*   **Controllers:** Keyboard input for one controller.
+*   **Controllers:** Supports both local keyboard input and remote gRPC-based network controllers.
 *   **Mappers:** Supports NROM (Mapper 0) and MMC1 (Mapper 1) cartridges.
-*   **UI:** A simple menu allows for loading ROMs, resetting the console, and exiting the emulator.
+*   **UI:** A custom-styled menu bar with 3D beveled buttons, a glowing power LED, and NES-inspired branding.
+*   **Scripting:** Built-in macro recording and replaying capabilities.
 
 ## Building
 
-To build the emulator, ensure you have Go (version 1.25.5 or compatible) installed.
+To build the emulator and the gRPC toolchain, ensure you have Go (version 1.25.5 or compatible) installed.
 
 ```bash
 make build
 ```
 
-The `make build` command will also ensure all Go module dependencies are downloaded.
-
 ## Running
 
-To run the emulator, you can optionally provide a `.nes` ROM file as a command-line argument. If no ROM is provided, you can load one via the "LOAD" button in the menu.
+To run the emulator, you can optionally provide a `.nes` ROM file as a command-line argument or load one via the **LOAD** button in the top menu.
 
 ```bash
-# With a ROM file
-make run ROM_FILE=/path/to/your/rom.nes
+# Standard run
+make run ROM_FILE=/path/to/rom.nes
 
-# Without a ROM file
-make run
+# With debug logging enabled
+./vibemulator -debug /path/to/rom.nes
 ```
 
-Replace `/path/to/your/rom.nes` with the actual path to your ROM file.
+### Controls (Player 1)
+- **Arrows:** Directional Pad
+- **Z:** A Button
+- **X:** B Button
+- **Enter:** Start
+- **Shift:** Select
+
+## Network Play & Scripting
+
+Vibemulator includes a built-in gRPC server (port 50051) that allows remote clients to stream controller inputs to the emulator over a network.
+
+### Macro Recording
+You can record your gameplay to a human-readable script file for later analysis or replay.
+
+```bash
+# Record gameplay to "mysession.script"
+./vibemulator -record mysession.script /path/to/rom.nes
+```
+
+### Macro Replay (via gRPC)
+You can replay a recorded session by streaming the script through the provided gRPC client.
+
+1.  Start the emulator normally: `./vibemulator /path/to/rom.nes`
+2.  In a separate terminal, run the replayer:
+    ```bash
+    go run cmd/client/main.go -script mysession.script
+    ```
 
 ## Testing
 
