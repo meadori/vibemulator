@@ -86,7 +86,7 @@ type Display struct {
 }
 
 // New creates a new Display instance.
-func New(b *bus.Bus, srv *server.GRPCServer, recFile *os.File) *Display {
+func New(b *bus.Bus, srv *server.GRPCServer, recFile *os.File, initialRomPath string) *Display {
 	audioContext := audio.NewContext(sampleRate)
 	stream := &soundStream{bus: b}
 	player, err := audioContext.NewPlayer(stream)
@@ -118,6 +118,11 @@ func New(b *bus.Bus, srv *server.GRPCServer, recFile *os.File) *Display {
 		vector.DrawFilledRect(scanImg, 0, float32(y), 256, 1, color.RGBA{0, 0, 0, 70}, false)
 	}
 
+	romBaseName := ""
+	if initialRomPath != "" {
+		romBaseName = filepath.Base(initialRomPath)
+	}
+
 	return &Display{
 		bus:           b,
 		audioPlayer:   player,
@@ -126,6 +131,7 @@ func New(b *bus.Bus, srv *server.GRPCServer, recFile *os.File) *Display {
 		recordFile:    recFile,
 		firstFrame:    true,
 		romLoadChan:   make(chan string, 1),
+		romName:       romBaseName,
 		staticImage:   staticImg,
 		staticPix:     staticPix,
 		scanlineImage: scanImg,
@@ -133,7 +139,7 @@ func New(b *bus.Bus, srv *server.GRPCServer, recFile *os.File) *Display {
 		pt1Image:      ebiten.NewImage(128, 128),
 		pt0Pix:        make([]byte, 128*128*4),
 		pt1Pix:        make([]byte, 128*128*4),
-		rewindBuffer:  make([]bus.State, 0, 1000), // Pre-allocate up to 1000 states (~16 seconds of rewind if sampled every frame)
+		rewindBuffer:  make([]bus.State, 0, 1200), // Pre-allocate up to 1200 states (~20 seconds of rewind if sampled every frame)
 	}
 }
 

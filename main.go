@@ -74,7 +74,7 @@ func main() {
 	}
 	defer grpcServer.Stop()
 
-	d := display.New(b, grpcServer, recFile)
+	d := display.New(b, grpcServer, recFile, romFilePath)
 	logDebug("Display created.")
 	ebiten.SetWindowSize(display.ScaledWidth(), display.ScaledHeight())
 	ebiten.SetWindowTitle("Vibemulator")
