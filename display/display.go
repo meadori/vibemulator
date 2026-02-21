@@ -553,14 +553,14 @@ func (d *Display) drawPPUDebugOverlay(screen *ebiten.Image) {
 }
 
 func drawNESButton(screen *ebiten.Image, textStr string, x, y, w, h float32, isHovered, isPressed bool) {
-	// Classic NES grey plastic button colors - lightened slightly
-	baseColor := color.RGBA{70, 70, 70, 255}
-	lightColor := color.RGBA{120, 120, 120, 255}
-	darkColor := color.RGBA{40, 40, 40, 255}
+	// Classic NES grey plastic button colors - lightened significantly for text contrast
+	baseColor := color.RGBA{150, 150, 150, 255}
+	lightColor := color.RGBA{200, 200, 200, 255}
+	darkColor := color.RGBA{90, 90, 90, 255}
 
 	if isHovered {
-		baseColor = color.RGBA{85, 85, 85, 255}
-		lightColor = color.RGBA{140, 140, 140, 255}
+		baseColor = color.RGBA{170, 170, 170, 255}
+		lightColor = color.RGBA{220, 220, 220, 255}
 	}
 
 	if isPressed {
@@ -601,10 +601,23 @@ func drawNESButton(screen *ebiten.Image, textStr string, x, y, w, h float32, isH
 		textY += 2
 	}
 
-	op.GeoM.Translate(float64(textX), float64(textY))
-	// NES Red text
-	op.ColorScale.ScaleWithColor(color.RGBA{220, 50, 50, 255})
-	screen.DrawImage(textImg, op)
+	// Helper to draw the button text with an offset and color
+	drawTextOffset := func(dx, dy float64, c color.Color) {
+		opT := *op
+		opT.GeoM.Translate(float64(textX)+dx, float64(textY)+dy)
+		opT.ColorScale.ScaleWithColor(c)
+		screen.DrawImage(textImg, &opT)
+	}
+
+	// 1. Draw crisp black outline (Up, Down, Left, Right)
+	black := color.RGBA{0, 0, 0, 180} // Slightly transparent black for a softer outline
+	drawTextOffset(-1, 0, black)
+	drawTextOffset(1, 0, black)
+	drawTextOffset(0, -1, black)
+	drawTextOffset(0, 1, black)
+
+	// 2. Draw Main Red Text
+	drawTextOffset(0, 0, color.RGBA{220, 50, 50, 255})
 }
 
 // Layout takes the outside size (e.g., the window size) and returns the (logical) screen size.
