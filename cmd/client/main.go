@@ -20,29 +20,37 @@ func parseButtons(fullStr string) (int, *api.InputState) {
 	if len(parts) != 2 {
 		return 0, &api.InputState{}
 	}
-	
+
 	playerIndex := 1
 	if parts[0] == "P2" {
 		playerIndex = 2
 	}
-	
+
 	buttonStr := parts[1]
 	state := &api.InputState{PlayerIndex: int32(playerIndex)}
 	if buttonStr == "NONE" {
 		return playerIndex, state
 	}
-	
+
 	buttons := strings.Split(buttonStr, "+")
 	for _, b := range buttons {
 		switch strings.ToUpper(b) {
-		case "A":      state.A = true
-		case "B":      state.B = true
-		case "SELECT": state.Select = true
-		case "START":  state.Start = true
-		case "UP":     state.Up = true
-		case "DOWN":   state.Down = true
-		case "LEFT":   state.Left = true
-		case "RIGHT":  state.Right = true
+		case "A":
+			state.A = true
+		case "B":
+			state.B = true
+		case "SELECT":
+			state.Select = true
+		case "START":
+			state.Start = true
+		case "UP":
+			state.Up = true
+		case "DOWN":
+			state.Down = true
+		case "LEFT":
+			state.Left = true
+		case "RIGHT":
+			state.Right = true
 		}
 	}
 	return playerIndex, state
@@ -109,10 +117,10 @@ func main() {
 				log.Fatalf("failed to send state: %v", err)
 			}
 		}
-		
+
 		// 1 frame = ~16.666ms at 60Hz
 		duration := time.Duration(float64(frames) * 16.666666 * float64(time.Millisecond))
-		
+
 		// Wait for the duration
 		time.Sleep(duration)
 	}

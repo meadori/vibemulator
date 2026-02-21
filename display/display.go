@@ -139,18 +139,36 @@ func (d *Display) loadROM(path string) {
 func (d *Display) writeRecord(frames int, p1, p2 [8]bool) {
 	formatBtns := func(b [8]bool) string {
 		var names []string
-		if b[0] { names = append(names, "A") }
-		if b[1] { names = append(names, "B") }
-		if b[2] { names = append(names, "SELECT") }
-		if b[3] { names = append(names, "START") }
-		if b[4] { names = append(names, "UP") }
-		if b[5] { names = append(names, "DOWN") }
-		if b[6] { names = append(names, "LEFT") }
-		if b[7] { names = append(names, "RIGHT") }
-		if len(names) == 0 { return "NONE" }
+		if b[0] {
+			names = append(names, "A")
+		}
+		if b[1] {
+			names = append(names, "B")
+		}
+		if b[2] {
+			names = append(names, "SELECT")
+		}
+		if b[3] {
+			names = append(names, "START")
+		}
+		if b[4] {
+			names = append(names, "UP")
+		}
+		if b[5] {
+			names = append(names, "DOWN")
+		}
+		if b[6] {
+			names = append(names, "LEFT")
+		}
+		if b[7] {
+			names = append(names, "RIGHT")
+		}
+		if len(names) == 0 {
+			return "NONE"
+		}
 		return strings.Join(names, "+")
 	}
-	
+
 	fmt.Fprintf(d.recordFile, "%d P1:%s P2:%s\n", frames, formatBtns(p1), formatBtns(p2))
 }
 
