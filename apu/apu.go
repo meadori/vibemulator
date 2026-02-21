@@ -119,6 +119,7 @@ type DMCChannel struct {
 	bitsRemaining     byte
 	sampleBuffer      byte
 	sampleBufferEmpty bool
+	silenceFlag       bool
 
 	irqPending bool      // New field to signal IRQ
 	bus        BusReader // Interface to read from the bus
@@ -159,7 +160,7 @@ func New() *APU {
 		pulse2:       &PulseChannel{isPulse1: false},
 		triangle:     &TriangleChannel{},
 		noise:        &NoiseChannel{},
-		dmc:          &DMCChannel{},
+		dmc:          &DMCChannel{sampleBufferEmpty: true, silenceFlag: true},
 		sampleRate:   44100.0,
 		cpuClockRate: 1789773.0,
 		sampleBuffer: make([]float32, 0, int(44100*2)), // Increased capacity for 2 seconds of audio
@@ -443,34 +444,34 @@ func (n *NoiseChannel) Clock() {
 }
 
 func (d *DMCChannel) Clock(bus BusReader) {
+	// 1. Memory Reader: if sample buffer is empty and we have bytes remaining, fetch next byte
+	if d.sampleBufferEmpty && d.bytesRemaining > 0 {
+		d.sampleBuffer = bus.Read(d.currentAddress)
+		d.sampleBufferEmpty = false
+		d.currentAddress++
+		if d.currentAddress == 0 {
+			d.currentAddress = 0x8000
+		}
+		d.bytesRemaining--
+		if d.bytesRemaining == 0 {
+			if d.loop {
+				d.currentAddress = d.sampleAddress
+				d.bytesRemaining = d.sampleLength
+			} else { // Sample finished, generate IRQ if enabled
+				if d.irqEnabled {
+					d.irqPending = true
+				}
+			}
+		}
+	}
+
+	// 2. Timer and Output Unit
 	if d.timer > 0 {
 		d.timer--
 	} else {
 		d.timer = dmcRateTable[d.rateIndex]
-		if d.bitsRemaining == 0 {
-			d.bitsRemaining = 8
-			if d.sampleBufferEmpty && d.bytesRemaining > 0 {
-				d.sampleBuffer = bus.Read(d.currentAddress)
-				d.sampleBufferEmpty = false
-				d.currentAddress++
-				if d.currentAddress == 0 {
-					d.currentAddress = 0x8000
-				}
-				d.bytesRemaining--
-				if d.bytesRemaining == 0 {
-					if d.loop {
-						d.currentAddress = d.sampleAddress
-						d.bytesRemaining = d.sampleLength
-					} else { // Sample finished, generate IRQ if enabled
-						if d.irqEnabled {
-							d.irqPending = true // Set IRQ pending flag
-						}
-					}
-				}
-			}
-		}
 
-		if !d.sampleBufferEmpty {
+		if !d.silenceFlag {
 			if (d.shiftRegister & 1) == 1 {
 				if d.outputLevel <= 125 {
 					d.outputLevel += 2
@@ -481,9 +482,20 @@ func (d *DMCChannel) Clock(bus BusReader) {
 				}
 			}
 			d.shiftRegister >>= 1
+		}
+
+		if d.bitsRemaining > 0 {
 			d.bitsRemaining--
-			if d.bitsRemaining == 0 {
+		}
+
+		if d.bitsRemaining == 0 {
+			d.bitsRemaining = 8
+			if !d.sampleBufferEmpty {
+				d.silenceFlag = false
+				d.shiftRegister = d.sampleBuffer
 				d.sampleBufferEmpty = true
+			} else {
+				d.silenceFlag = true
 			}
 		}
 	}
