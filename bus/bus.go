@@ -54,6 +54,11 @@ func (b *Bus) LoadCartridge(cart *cartridge.Cartridge) error {
 	return nil
 }
 
+// HasCartridge returns true if a cartridge is currently loaded.
+func (b *Bus) HasCartridge() bool {
+	return b.cart != nil
+}
+
 // Clock performs one clock cycle of the system.
 func (b *Bus) Clock() {
 	b.PPU.Clock()

@@ -7,6 +7,7 @@ import (
 	"image/color"
 	_ "image/png" // Required for PNG decoding
 	"log"
+	"math/rand"
 	"os"
 	"strings"
 
@@ -58,6 +59,12 @@ type Display struct {
 	firstFrame      bool
 
 	romLoadChan chan string
+
+	// UI Additions
+	staticImage    *ebiten.Image
+	staticPix      []byte
+	scanlineImage  *ebiten.Image
+	currentButtons [8]bool
 }
 
 // New creates a new Display instance.
@@ -83,14 +90,27 @@ func New(b *bus.Bus, srv *server.GRPCServer, recFile *os.File) *Display {
 	}
 	bezelImage := ebiten.NewImageFromImage(img)
 
+	// Create TV Static assets
+	staticImg := ebiten.NewImage(256, 240)
+	staticPix := make([]byte, 256*240*4)
+
+	// Create CRT Scanlines overlay (black line every other row)
+	scanImg := ebiten.NewImage(256, 240)
+	for y := 0; y < 240; y += 2 {
+		vector.DrawFilledRect(scanImg, 0, float32(y), 256, 1, color.RGBA{0, 0, 0, 70}, false)
+	}
+
 	return &Display{
-		bus:         b,
-		audioPlayer: player,
-		bezelImage:  bezelImage,
-		grpcServer:  srv,
-		recordFile:  recFile,
-		firstFrame:  true,
-		romLoadChan: make(chan string, 1),
+		bus:           b,
+		audioPlayer:   player,
+		bezelImage:    bezelImage,
+		grpcServer:    srv,
+		recordFile:    recFile,
+		firstFrame:    true,
+		romLoadChan:   make(chan string, 1),
+		staticImage:   staticImg,
+		staticPix:     staticPix,
+		scanlineImage: scanImg,
 	}
 }
 
@@ -191,6 +211,19 @@ func (d *Display) Update() error {
 	buttons[6] = ebiten.IsKeyPressed(ebiten.KeyArrowLeft) || remoteState[6]  // Left
 	buttons[7] = ebiten.IsKeyPressed(ebiten.KeyArrowRight) || remoteState[7] // Right
 	d.bus.SetController1State(buttons)
+	d.currentButtons = buttons
+
+	// Generate TV Static if no cartridge is loaded
+	if !d.bus.HasCartridge() {
+		for i := 0; i < len(d.staticPix); i += 4 {
+			val := byte(rand.Intn(256))
+			d.staticPix[i] = val
+			d.staticPix[i+1] = val
+			d.staticPix[i+2] = val
+			d.staticPix[i+3] = 255
+		}
+		d.staticImage.WritePixels(d.staticPix)
+	}
 
 	// Record inputs if recording is enabled
 	if d.recordFile != nil {
@@ -226,14 +259,21 @@ func (d *Display) Draw(screen *ebiten.Image) {
 	opBezel.GeoM.Scale(scalingFactor, scalingFactor)
 	screen.DrawImage(d.bezelImage, opBezel)
 
-	// Draw the game screen onto the bezel
-	gameScreen := ebiten.NewImageFromImage(d.bus.PPU.GetFrame())
-	opGame := &ebiten.DrawImageOptions{}
+	// Determine what to show on the TV
+	var rawScreen *ebiten.Image
+	if d.bus.HasCartridge() {
+		rawScreen = ebiten.NewImageFromImage(d.bus.PPU.GetFrame())
+		// Apply CRT Scanlines directly over the game frame before scaling
+		rawScreen.DrawImage(d.scanlineImage, nil)
+	} else {
+		rawScreen = d.staticImage
+	}
 
 	// Scale the game screen to its target size within the bezel
-	gameScaleX := float64(gameScreenWidth) / float64(gameScreen.Bounds().Dx())
-	gameScaleY := float64(gameScreenHeight) / float64(gameScreen.Bounds().Dy())
+	gameScaleX := float64(gameScreenWidth) / float64(rawScreen.Bounds().Dx())
+	gameScaleY := float64(gameScreenHeight) / float64(rawScreen.Bounds().Dy())
 
+	opGame := &ebiten.DrawImageOptions{}
 	// Apply the main scaling factor to everything
 	finalScaleX := gameScaleX * scalingFactor
 	finalScaleY := gameScaleY * scalingFactor
@@ -242,7 +282,10 @@ func (d *Display) Draw(screen *ebiten.Image) {
 	// Apply the scaled translation
 	opGame.GeoM.Translate(gameScreenX*scalingFactor, gameScreenY*scalingFactor)
 
-	screen.DrawImage(gameScreen, opGame)
+	screen.DrawImage(rawScreen, opGame)
+
+	// Draw the live controller HUD below the TV screen
+	d.drawControllerHUD(screen)
 
 	// Draw the menu bar
 	if d.menuBarVisible {
@@ -368,4 +411,64 @@ func ScaledWidth() int {
 
 func ScaledHeight() int {
 	return int(bezelHeight * scalingFactor)
+}
+
+// drawControllerHUD draws a live NES controller below the TV screen that lights up when buttons are pressed.
+func (d *Display) drawControllerHUD(screen *ebiten.Image) {
+	// Position the controller centered below the TV screen
+	hudWidth, hudHeight := float32(300), float32(110)
+	x := float32(bezelWidth*scalingFactor)/2 - hudWidth/2
+	y := float32(gameScreenY*scalingFactor) + float32(gameScreenHeight*scalingFactor) + 60
+
+	// Base shell (light grey with dark stripe)
+	vector.DrawFilledRect(screen, x, y, hudWidth, hudHeight, color.RGBA{180, 180, 180, 255}, false)
+	vector.DrawFilledRect(screen, x+20, y+hudHeight/2-10, hudWidth-40, 20, color.RGBA{30, 30, 30, 255}, false)
+
+	// D-Pad (Up=4, Down=5, Left=6, Right=7)
+	dpadX, dpadY := x+55, y+55
+	dpadColor := color.RGBA{20, 20, 20, 255}
+	hlColor := color.RGBA{130, 130, 130, 255}
+
+	// Draw cross
+	vector.DrawFilledRect(screen, dpadX-12, dpadY-35, 24, 70, dpadColor, false) // Vert
+	vector.DrawFilledRect(screen, dpadX-35, dpadY-12, 70, 24, dpadColor, false) // Horiz
+
+	// D-Pad Highlights
+	if d.currentButtons[4] { // Up
+		vector.DrawFilledRect(screen, dpadX-12, dpadY-35, 24, 25, hlColor, false)
+	}
+	if d.currentButtons[5] { // Down
+		vector.DrawFilledRect(screen, dpadX-12, dpadY+10, 24, 25, hlColor, false)
+	}
+	if d.currentButtons[6] { // Left
+		vector.DrawFilledRect(screen, dpadX-35, dpadY-12, 25, 24, hlColor, false)
+	}
+	if d.currentButtons[7] { // Right
+		vector.DrawFilledRect(screen, dpadX+10, dpadY-12, 25, 24, hlColor, false)
+	}
+
+	// Select/Start (Select=2, Start=3)
+	selColor, startColor := color.RGBA{30, 30, 30, 255}, color.RGBA{30, 30, 30, 255}
+	if d.currentButtons[2] {
+		selColor = hlColor
+	}
+	if d.currentButtons[3] {
+		startColor = hlColor
+	}
+	// Angled pills (simulated with rectangles for now)
+	vector.DrawFilledRect(screen, x+120, y+60, 35, 12, selColor, false)
+	vector.DrawFilledRect(screen, x+170, y+60, 35, 12, startColor, false)
+
+	// B/A Buttons (B=1, A=0)
+	bColor, aColor := color.RGBA{200, 0, 0, 255}, color.RGBA{200, 0, 0, 255}
+	btnHlColor := color.RGBA{255, 100, 100, 255}
+	if d.currentButtons[1] {
+		bColor = btnHlColor
+	}
+	if d.currentButtons[0] {
+		aColor = btnHlColor
+	}
+	// A is higher than B on NES
+	vector.DrawFilledCircle(screen, x+230, y+70, 18, bColor, false)
+	vector.DrawFilledCircle(screen, x+275, y+60, 18, aColor, false)
 }
