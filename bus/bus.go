@@ -148,6 +148,11 @@ func (b *Bus) SetController1State(buttons [8]bool) {
 	b.joy1.SetButtons(buttons)
 }
 
+// SetController2State sets the state of the buttons for controller 2.
+func (b *Bus) SetController2State(buttons [8]bool) {
+	b.joy2.SetButtons(buttons)
+}
+
 func (b *Bus) Reset() {
 	b.cpu.Reset()
 }

@@ -61,10 +61,11 @@ type Display struct {
 	romLoadChan chan string
 
 	// UI Additions
-	staticImage    *ebiten.Image
-	staticPix      []byte
-	scanlineImage  *ebiten.Image
-	currentButtons [8]bool
+	staticImage      *ebiten.Image
+	staticPix        []byte
+	scanlineImage    *ebiten.Image
+	currentButtons   [8]bool
+	currentButtonsP2 [8]bool
 
 	// PPU Debugger
 	showDebug    bool
@@ -251,6 +252,20 @@ func (d *Display) Update() error {
 	d.bus.SetController1State(buttons)
 	d.currentButtons = buttons
 
+	// Player 2
+	remoteStateP2 := d.grpcServer.GetP2State()
+	buttonsP2 := [8]bool{}
+	buttonsP2[0] = ebiten.IsKeyPressed(ebiten.KeyI) || remoteStateP2[0] // A
+	buttonsP2[1] = ebiten.IsKeyPressed(ebiten.KeyU) || remoteStateP2[1] // B
+	buttonsP2[2] = ebiten.IsKeyPressed(ebiten.KeyY) || remoteStateP2[2] // Select
+	buttonsP2[3] = ebiten.IsKeyPressed(ebiten.KeyH) || remoteStateP2[3] // Start
+	buttonsP2[4] = ebiten.IsKeyPressed(ebiten.KeyW) || remoteStateP2[4] // Up
+	buttonsP2[5] = ebiten.IsKeyPressed(ebiten.KeyS) || remoteStateP2[5] // Down
+	buttonsP2[6] = ebiten.IsKeyPressed(ebiten.KeyA) || remoteStateP2[6] // Left
+	buttonsP2[7] = ebiten.IsKeyPressed(ebiten.KeyD) || remoteStateP2[7] // Right
+	d.bus.SetController2State(buttonsP2)
+	d.currentButtonsP2 = buttonsP2
+
 	// Generate TV Static if no cartridge is loaded
 	if !d.bus.HasCartridge() {
 		for i := 0; i < len(d.staticPix); i += 4 {
@@ -322,8 +337,9 @@ func (d *Display) Draw(screen *ebiten.Image) {
 
 	screen.DrawImage(rawScreen, opGame)
 
-	// Draw the live controller HUD below the TV screen
-	d.drawControllerHUD(screen)
+	// Draw the live controller HUDs below the TV screen
+	d.drawControllerHUD(screen, -160, d.currentButtons, "P1")
+	d.drawControllerHUD(screen, 160, d.currentButtonsP2, "P2")
 
 	// Draw the menu bar
 	if d.menuBarVisible {
@@ -502,10 +518,10 @@ func ScaledHeight() int {
 }
 
 // drawControllerHUD draws a live NES controller below the TV screen that lights up when buttons are pressed.
-func (d *Display) drawControllerHUD(screen *ebiten.Image) {
+func (d *Display) drawControllerHUD(screen *ebiten.Image, offsetX float32, activeButtons [8]bool, label string) {
 	// Position the controller centered below the TV screen
 	hudWidth, hudHeight := float32(300), float32(110)
-	x := float32(bezelWidth*scalingFactor)/2 - hudWidth/2
+	x := (float32(bezelWidth*scalingFactor)/2 - hudWidth/2) + offsetX
 	y := float32(gameScreenY*scalingFactor) + float32(gameScreenHeight*scalingFactor) + 310
 
 	// Synthwave Neon Colors
@@ -531,6 +547,16 @@ func (d *Display) drawControllerHUD(screen *ebiten.Image) {
 	vector.StrokeRect(screen, x, y, hudWidth, hudHeight, 3, outerBox, false)
 	vector.StrokeRect(screen, x+2, y+2, hudWidth-4, hudHeight-4, 1, color.RGBA{255, 255, 255, 80}, false) // Inner highlight
 
+	// Draw Player Label
+	opLbl := &ebiten.DrawImageOptions{}
+	opLbl.GeoM.Scale(1.5, 1.5)
+	opLbl.ColorScale.ScaleWithColor(color.RGBA{200, 200, 200, 255})
+	lblImg := ebiten.NewImage(60, 16)
+	ebitenutil.DebugPrintAt(lblImg, label, 0, 0)
+	opP := *opLbl
+	opP.GeoM.Translate(float64(x+135), float64(y-30))
+	screen.DrawImage(lblImg, &opP)
+
 	// Helper for Neon Rects
 	drawNeonRect := func(rx, ry, w, h float32, active bool, onColor, offColor color.Color) {
 		if active {
@@ -546,16 +572,16 @@ func (d *Display) drawControllerHUD(screen *ebiten.Image) {
 	dpadX, dpadY := x+60, y+55
 
 	// Draw arms individually for a hollow cross look
-	drawNeonRect(dpadX-10, dpadY-30, 20, 20, d.currentButtons[4], cyanOn, cyanOff) // Up
-	drawNeonRect(dpadX-10, dpadY+10, 20, 20, d.currentButtons[5], cyanOn, cyanOff) // Down
-	drawNeonRect(dpadX-30, dpadY-10, 20, 20, d.currentButtons[6], cyanOn, cyanOff) // Left
-	drawNeonRect(dpadX+10, dpadY-10, 20, 20, d.currentButtons[7], cyanOn, cyanOff) // Right
+	drawNeonRect(dpadX-10, dpadY-30, 20, 20, activeButtons[4], cyanOn, cyanOff) // Up
+	drawNeonRect(dpadX-10, dpadY+10, 20, 20, activeButtons[5], cyanOn, cyanOff) // Down
+	drawNeonRect(dpadX-30, dpadY-10, 20, 20, activeButtons[6], cyanOn, cyanOff) // Left
+	drawNeonRect(dpadX+10, dpadY-10, 20, 20, activeButtons[7], cyanOn, cyanOff) // Right
 	// Center square (hollow unless multiple pressed)
 	vector.StrokeRect(screen, dpadX-10, dpadY-10, 20, 20, 2, cyanOff, false)
 
 	// --- SELECT & START (Yellow) ---
-	drawNeonRect(x+130, y+55, 25, 10, d.currentButtons[2], yellowOn, yellowOff) // Select
-	drawNeonRect(x+170, y+55, 25, 10, d.currentButtons[3], yellowOn, yellowOff) // Start
+	drawNeonRect(x+130, y+55, 25, 10, activeButtons[2], yellowOn, yellowOff) // Select
+	drawNeonRect(x+170, y+55, 25, 10, activeButtons[3], yellowOn, yellowOff) // Start
 
 	// --- A & B BUTTONS (Magenta) ---
 	drawNeonCircle := func(cx, cy float32, active bool) {
@@ -567,15 +593,16 @@ func (d *Display) drawControllerHUD(screen *ebiten.Image) {
 		}
 	}
 
-	drawNeonCircle(x+230, y+60, d.currentButtons[1]) // B
-	drawNeonCircle(x+270, y+60, d.currentButtons[0]) // A
+	drawNeonCircle(x+230, y+60, activeButtons[1]) // B
+	drawNeonCircle(x+270, y+60, activeButtons[0]) // A
 
 	// --- NEON LABELS ---
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(1.2, 1.2)
+	op.GeoM.Scale(2.0, 2.0) // Bigger text!
 
 	drawText := func(text string, tx, ty float64, c color.Color) {
-		img := ebiten.NewImage(60, 16)
+		// Use a wider buffer so the scaled text isn't cropped
+		img := ebiten.NewImage(80, 20)
 		ebitenutil.DebugPrintAt(img, text, 0, 0)
 		txtOp := *op
 		txtOp.GeoM.Translate(tx, ty)
@@ -583,8 +610,8 @@ func (d *Display) drawControllerHUD(screen *ebiten.Image) {
 		screen.DrawImage(img, &txtOp)
 	}
 
-	drawText("SEL", float64(x+130), float64(y+70), yellowOff)
-	drawText("STR", float64(x+170), float64(y+70), yellowOff)
-	drawText("B", float64(x+225), float64(y+80), magentaOff)
-	drawText("A", float64(x+265), float64(y+80), magentaOff)
+	drawText("SEL", float64(x+120), float64(y+70), yellowOff)
+	drawText("STR", float64(x+160), float64(y+70), yellowOff)
+	drawText("B", float64(x+223), float64(y+80), magentaOff)
+	drawText("A", float64(x+263), float64(y+80), magentaOff)
 }
