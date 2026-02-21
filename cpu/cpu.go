@@ -49,6 +49,9 @@ type CPU struct {
 	fetched uint8
 	addrAbs uint16
 	addrRel uint16
+
+	nmiPending bool
+	irqPending bool
 }
 
 // New creates a new CPU instance.
@@ -78,10 +81,16 @@ func (c *CPU) Reset() {
 	c.P = 0x00 | U
 	c.setFlag('I', true) // This sets the I flag
 	c.Cycles = 8         // Updated
+	c.nmiPending = false
+	c.irqPending = false
 }
 
 // NMI is a non-maskable interrupt.
 func (c *CPU) NMI() {
+	c.nmiPending = true
+}
+
+func (c *CPU) processNMI() {
 	c.push(byte((c.PC >> 8) & 0x00FF))
 	c.push(byte(c.PC & 0x00FF))
 
@@ -95,11 +104,16 @@ func (c *CPU) NMI() {
 	hi := uint16(c.bus.Read(c.addrAbs + 1))
 	c.PC = (hi << 8) | lo
 
-	c.Cycles = 8 // Updated
+	c.Cycles = 8 // NMI takes 8 cycles
+	c.nmiPending = false
 }
 
 // IRQ is a maskable interrupt.
 func (c *CPU) IRQ() {
+	c.irqPending = true
+}
+
+func (c *CPU) processIRQ() {
 	// IRQ is ignored if Interrupt Disable flag (I) is set.
 	if c.getFlag('I') == 0 {
 		// Push PC to stack
@@ -122,6 +136,7 @@ func (c *CPU) IRQ() {
 
 		c.Cycles = 7 // IRQ takes 7 cycles
 	}
+	c.irqPending = false
 }
 
 // LogState prints the current CPU state in a nestest-like format.
@@ -136,18 +151,25 @@ func (c *CPU) LogState() string {
 func (c *CPU) Clock() {
 	safeLogDebug("CPU Clock")
 	if c.Cycles == 0 {
-		c.opcode = c.bus.Read(c.PC)
-		c.PC++
-		safeLogDebug("CPU Clock: PC = %04X, Opcode = %02X", c.PC, c.opcode)
+		if c.nmiPending {
+			c.processNMI()
+		} else if c.irqPending {
+			c.processIRQ()
+		} else {
+			c.opcode = c.bus.Read(c.PC)
+			c.PC++
+			safeLogDebug("CPU Clock: PC = %04X, Opcode = %02X", c.PC, c.opcode)
 
-		instr := c.Lookup[c.opcode]
-		c.Cycles = instr.Cycles
-		addedCycle1 := instr.AddrMode()
-		addedCycle2 := instr.Operate()
-		c.Cycles += int(addedCycle1 + addedCycle2)
-
+			instr := c.Lookup[c.opcode]
+			c.Cycles = instr.Cycles
+			addedCycle1 := instr.AddrMode()
+			addedCycle2 := instr.Operate()
+			c.Cycles += int(addedCycle1 + addedCycle2)
+		}
 	}
-	c.Cycles--
+	if c.Cycles > 0 {
+		c.Cycles--
+	}
 }
 
 func (c *CPU) push(data byte) {
