@@ -495,17 +495,17 @@ func (d *Display) drawVCRStatus(screen *ebiten.Image) {
 
 	// Draw the text
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(1.5, 1.5)
+	op.GeoM.Scale(2.0, 2.0)
 
 	// Shift it into the black space in the top left
-	op.GeoM.Translate(50, 100)
+	op.GeoM.Translate(40, 80)
 
 	// VCR Green
 	op.ColorScale.ScaleWithColor(color.RGBA{50, 255, 50, 255})
 
 	// Ebitenutil doesn't natively support scaling color directly to screen.
 	// We'll draw to an image buffer first.
-	img := ebiten.NewImage(250, 100)
+	img := ebiten.NewImage(300, 120)
 	ebitenutil.DebugPrintAt(img, statsText, 0, 0)
 	screen.DrawImage(img, op)
 }
