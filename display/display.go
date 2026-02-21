@@ -446,7 +446,8 @@ func (d *Display) Draw(screen *ebiten.Image) {
 		// Helper to draw the logo with an offset and color
 		drawLogoOffset := func(dx, dy float64, c color.Color) {
 			op := *logOp
-			op.GeoM.Translate(350+dx, 2+dy)
+			centerX := float64(ScaledWidth())/2 - 100
+			op.GeoM.Translate(centerX+dx, 2+dy)
 			op.ColorScale.ScaleWithColor(c)
 			screen.DrawImage(logoImg, &op)
 		}
