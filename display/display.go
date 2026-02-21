@@ -282,6 +282,8 @@ func (d *Display) Update() error {
 			copy(d.rewindBuffer, d.rewindBuffer[1:])
 			d.rewindBuffer = d.rewindBuffer[:len(d.rewindBuffer)-1]
 		}
+
+		d.frameCount++
 	}
 
 	// Poll controller input (Logical OR local input and remote network input)
