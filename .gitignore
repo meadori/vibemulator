@@ -19,3 +19,4 @@ nestest/testdata/nestest.nes
 diff.log
 my_nestest.log
 
+.bin/
