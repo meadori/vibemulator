@@ -263,19 +263,16 @@ func (d *Display) Update() error {
 	}
 
 	if !isRewinding && d.bus.HasCartridge() {
-		// Only capture a snapshot every 2nd frame (reduces memory usage and doubles rewind duration)
-		if d.frameCount%2 == 0 {
-			state := d.bus.SaveStateToMemory()
-			d.rewindBuffer = append(d.rewindBuffer, state)
+		// Capture a snapshot every single frame for butter-smooth 1x rewind
+		state := d.bus.SaveStateToMemory()
+		d.rewindBuffer = append(d.rewindBuffer, state)
 
-			// Cap the rewind buffer to 600 states (~20 seconds of gameplay history)
-			if len(d.rewindBuffer) > 600 {
-				// Shift the slice left, discarding the oldest state
-				copy(d.rewindBuffer, d.rewindBuffer[1:])
-				d.rewindBuffer = d.rewindBuffer[:len(d.rewindBuffer)-1]
-			}
+		// Cap the rewind buffer to 1200 states (exactly 20 seconds of 60fps gameplay history)
+		if len(d.rewindBuffer) > 1200 {
+			// Shift the slice left, discarding the oldest state
+			copy(d.rewindBuffer, d.rewindBuffer[1:])
+			d.rewindBuffer = d.rewindBuffer[:len(d.rewindBuffer)-1]
 		}
-		d.frameCount++
 	}
 
 	// Poll controller input (Logical OR local input and remote network input)
