@@ -7,6 +7,20 @@ option go_package = "github.com/meadori/vibemulator/api";
 service ControllerService {
   // Client streams button states to the emulator
   rpc StreamInput(stream InputState) returns (stream Empty) {}
+
+  // RL Endpoints
+  // Requests the current frame buffer (pixels) from the PPU
+  rpc GetFrame(Empty) returns (FrameResponse) {}
+  
+  // Reads a byte from the NES system bus (used to calculate RL rewards/done state)
+  rpc ReadMemory(MemoryRequest) returns (MemoryResponse) {}
+
+  // Loads an emulator save state from a file, bypassing the title screen
+  rpc LoadState(StateRequest) returns (Empty) {}
+}
+
+message StateRequest {
+  string filename = 1;
 }
 
 message InputState {
@@ -22,6 +36,19 @@ message InputState {
   bool down = 7;
   bool left = 8;
   bool right = 9;
+}
+
+message FrameResponse {
+  // Raw pixel data. Can be RGB or RGBA depending on the PPU output.
+  bytes pixels = 1;
+}
+
+message MemoryRequest {
+  uint32 address = 1;
+}
+
+message MemoryResponse {
+  uint32 data = 1;
 }
 
 message Empty {}

@@ -1,0 +1,6 @@
+gymnasium==0.29.1
+numpy==1.26.4
+torch==2.2.1
+grpcio==1.62.1
+grpcio-tools==1.62.1
+opencv-python==4.9.0.80
