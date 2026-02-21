@@ -629,11 +629,11 @@ func (a *APU) CPUWrite(addr uint16, data byte) {
 	case addr >= 0x4010 && addr <= 0x4013:
 		a.dmc.cpuWrite(addr, data)
 	case addr == 0x4015: // Status register
-		a.pulse1.SetEnabled(data&0x01 == 1)
-		a.pulse2.SetEnabled(data&0x02 == 1)
-		a.triangle.SetEnabled(data&0x04 == 1)
-		a.noise.SetEnabled(data&0x08 == 1)
-		a.dmc.SetEnabled(data&0x10 == 1)
+		a.pulse1.SetEnabled((data & 0x01) != 0)
+		a.pulse2.SetEnabled((data & 0x02) != 0)
+		a.triangle.SetEnabled((data & 0x04) != 0)
+		a.noise.SetEnabled((data & 0x08) != 0)
+		a.dmc.SetEnabled((data & 0x10) != 0)
 		// Writing to $4015 clears the DMC IRQ flag
 		a.DmcIRQ = false
 		a.dmc.irqPending = false
