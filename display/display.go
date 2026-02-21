@@ -461,7 +461,7 @@ func (d *Display) Draw(screen *ebiten.Image) {
 		drawLogoOffset(0, 0, color.RGBA{220, 50, 50, 255})
 
 		d.drawVCRStatus(screen)
-		d.drawPixelHeart(screen)
+		d.drawRetroIcon(screen)
 	}
 
 	// Draw PPU Debug Overlay
@@ -719,47 +719,51 @@ func (d *Display) drawControllerHUD(screen *ebiten.Image, offsetX float32, activ
 	drawText("A", float64(x+263), float64(y+80), magentaOff)
 }
 
-func (d *Display) drawPixelHeart(screen *ebiten.Image) {
-	// 11x11 pixel-art heart, scaled by 3
-	scale := float32(3.0)
-	x, y := float32(ScaledWidth()-50), float32(10)
+func (d *Display) drawRetroIcon(screen *ebiten.Image) {
+	// 16x16 1-UP Mushroom, scaled by 2
+	scale := float32(2.0)
+	x, y := float32(ScaledWidth()-50), float32(8)
 
-	red := color.RGBA{220, 50, 50, 255}
-	darkRed := color.RGBA{150, 20, 20, 255}
-	white := color.RGBA{255, 255, 255, 255}
 	black := color.RGBA{0, 0, 0, 255}
+	green := color.RGBA{50, 200, 50, 255}
+	white := color.RGBA{255, 255, 255, 255}
+	flesh := color.RGBA{255, 200, 150, 255}
 
 	drawPixel := func(px, py float32, c color.Color) {
 		vector.DrawFilledRect(screen, x+(px*scale), y+(py*scale), scale, scale, c, false)
 	}
 
-	// Classic 11x11 heart sprite data
-	// 0=Empty, 1=Black, 2=Red, 3=DarkRed, 4=White
-	sprite := [11][11]int{
-		{0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0},
-		{0, 1, 2, 4, 2, 1, 2, 2, 2, 1, 0},
-		{1, 2, 4, 2, 2, 2, 2, 2, 2, 3, 1},
-		{1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 1},
-		{1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 1},
-		{1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 1},
-		{0, 1, 2, 2, 2, 3, 3, 3, 3, 1, 0},
-		{0, 0, 1, 2, 2, 3, 3, 3, 1, 0, 0},
-		{0, 0, 0, 1, 2, 3, 3, 1, 0, 0, 0},
-		{0, 0, 0, 0, 1, 3, 1, 0, 0, 0, 0},
-		{0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0},
+	// Classic 16x16 1-UP Mushroom sprite data
+	sprite := [16][16]int{
+		{0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0},
+		{0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0},
+		{0, 0, 1, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 1, 0, 0},
+		{0, 1, 2, 2, 2, 2, 3, 3, 3, 3, 2, 2, 2, 2, 1, 0},
+		{0, 1, 2, 2, 2, 2, 3, 3, 3, 3, 2, 2, 2, 2, 1, 0},
+		{1, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 1},
+		{1, 2, 3, 3, 3, 3, 2, 2, 2, 2, 3, 3, 3, 3, 2, 1},
+		{1, 2, 3, 3, 3, 3, 2, 2, 2, 2, 3, 3, 3, 3, 2, 1},
+		{1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 1},
+		{0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0},
+		{0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0},
+		{0, 0, 0, 1, 4, 4, 4, 4, 4, 4, 4, 4, 1, 0, 0, 0},
+		{0, 0, 0, 1, 4, 4, 1, 4, 4, 1, 4, 4, 1, 0, 0, 0},
+		{0, 0, 0, 1, 4, 4, 1, 4, 4, 1, 4, 4, 1, 0, 0, 0},
+		{0, 0, 0, 0, 1, 4, 4, 4, 4, 4, 4, 1, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0},
 	}
 
-	for row := 0; row < 11; row++ {
-		for col := 0; col < 11; col++ {
+	for row := 0; row < 16; row++ {
+		for col := 0; col < 16; col++ {
 			switch sprite[row][col] {
 			case 1:
 				drawPixel(float32(col), float32(row), black)
 			case 2:
-				drawPixel(float32(col), float32(row), red)
+				drawPixel(float32(col), float32(row), green)
 			case 3:
-				drawPixel(float32(col), float32(row), darkRed)
-			case 4:
 				drawPixel(float32(col), float32(row), white)
+			case 4:
+				drawPixel(float32(col), float32(row), flesh)
 			}
 		}
 	}
