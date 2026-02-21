@@ -139,6 +139,7 @@ type APU struct {
 	sequenceMode      byte // 0 for 4-step, 1 for 5-step
 	irqInhibit        bool
 	DmcIRQ            bool // DMC Interrupt Flag
+	FrameIRQ          bool // Frame Counter Interrupt Flag
 
 	sampleRate         float64
 	cpuClockRate       float64
@@ -253,7 +254,9 @@ func (a *APU) Clock() {
 			if a.frameCounter == 14915 {
 				a.clockEnvelopesAndLinearCounter()
 				a.clockLengthAndSweeps()
-				// TODO: Fire IRQ if not inhibited
+				if !a.irqInhibit {
+					a.FrameIRQ = true
+				}
 				a.frameCounter = 0
 			}
 		} else { // 5-step sequence
@@ -597,16 +600,15 @@ func (a *APU) CPURead(addr uint16) byte {
 			data |= 0x10
 		}
 		// Bit 6: Frame Interrupt Flag (cleared on read)
+		if a.FrameIRQ {
+			data |= 0x40
+			a.FrameIRQ = false
+		}
 		// Bit 7: DMC Interrupt Flag (cleared on read)
 		if a.DmcIRQ {
 			data |= 0x80
 			a.DmcIRQ = false
 			a.dmc.irqPending = false
-		}
-		// Frame Interrupt Flag (bit 6) is cleared on read only if not inhibited
-		if !a.irqInhibit {
-			// TODO: Need a frame IRQ flag in APU struct
-			// For now, if we had a frame IRQ, we would clear it here.
 		}
 
 	}
@@ -638,6 +640,9 @@ func (a *APU) CPUWrite(addr uint16, data byte) {
 	case addr == 0x4017: // Frame Counter
 		a.sequenceMode = (data >> 7) & 1
 		a.irqInhibit = (data>>6)&1 == 1
+		if a.irqInhibit {
+			a.FrameIRQ = false
+		}
 		a.frameCounter = 0
 		if a.sequenceMode == 1 {
 			// 5-step mode clocks envelopes, linear counter, length counters, and sweeps immediately

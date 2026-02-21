@@ -70,8 +70,9 @@ func (b *Bus) Clock() {
 			b.cpu.NMI()
 		}
 
-		// Check for APU IRQ (DMC and later Frame IRQ)
-		if b.APU.DmcIRQ { // Assuming this is the only APU IRQ for now            b.cpu.IRQ()
+		// Check for APU IRQ (DMC or Frame IRQ)
+		if b.APU.DmcIRQ || b.APU.FrameIRQ {
+			b.cpu.IRQ()
 		}
 
 		b.cpu.Clock() // Clock the CPU after all IRQ checks
