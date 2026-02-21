@@ -9,6 +9,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -60,6 +61,7 @@ type Display struct {
 	firstFrame      bool
 
 	romLoadChan chan string
+	romName     string
 
 	// UI Additions
 	staticImage      *ebiten.Image
@@ -141,6 +143,7 @@ func (d *Display) loadROM(path string) {
 		log.Fatalf("Error loading ROM: %v", err)
 	}
 	d.bus.LoadCartridge(cart)
+	d.romName = filepath.Base(path)
 }
 
 func (d *Display) writeRecord(frames int, p1, p2 [8]bool) {
@@ -459,34 +462,53 @@ func (d *Display) Draw(screen *ebiten.Image) {
 }
 
 func (d *Display) drawVCRStatus(screen *ebiten.Image) {
-	// Draw a VCR-style On-Screen Display (OSD) in the top-right corner
+	var vcrState string
+	if d.isRewinding {
+		if (d.frameCount/8)%2 == 0 {
+			vcrState = "REW <<"
+		} else {
+			vcrState = "      "
+		}
+	} else {
+		vcrState = fmt.Sprintf("PLAY > %d FPS", d.frameRate)
+	}
+
+	uptimeSecs := d.frameCount / 60
+	h := uptimeSecs / 3600
+	m := (uptimeSecs % 3600) / 60
+	s := uptimeSecs % 60
+
+	rom := d.romName
+	if rom == "" {
+		rom = "NO CARTRIDGE"
+	} else if len(rom) > 15 {
+		rom = rom[:12] + "..."
+	}
+
+	statsText := fmt.Sprintf(
+		"+-------------------------+\n"+
+			"| VCR    : %-14s |\n"+
+			"| ROM    : %-14s |\n"+
+			"| UPTIME : %02d:%02d:%02d        |\n"+
+			"| SYSTEM : NTSC / 60Hz    |\n"+
+			"+-------------------------+", vcrState, rom, h, m, s)
+
+	// Draw the text
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(1.5, 1.5)
 
-	// Classic VCR Green
-	green := color.RGBA{50, 255, 50, 255}
+	// Shift it into the black space in the top left
+	op.GeoM.Translate(50, 100)
 
-	var statusText string
-	if d.isRewinding {
-		// Flash REW every ~8 frames
-		if (d.frameCount/8)%2 == 0 {
-			statusText = "REW <<"
-		}
-	} else {
-		statusText = fmt.Sprintf("PLAY > %d FPS", d.frameRate)
-	}
+	// VCR Green
+	op.ColorScale.ScaleWithColor(color.RGBA{50, 255, 50, 255})
 
-	if statusText != "" {
-		img := ebiten.NewImage(150, 16)
-		ebitenutil.DebugPrintAt(img, statusText, 0, 0)
-
-		// Shift to top right corner of the menu bar
-		op.GeoM.Translate(float64(ScaledWidth()-150), 15)
-		op.ColorScale.ScaleWithColor(green)
-		screen.DrawImage(img, op)
-	}
+	// Ebitenutil doesn't natively support scaling color directly to screen.
+	// We'll draw to an image buffer first.
+	img := ebiten.NewImage(250, 100)
+	ebitenutil.DebugPrintAt(img, statsText, 0, 0)
+	screen.DrawImage(img, op)
 }
-
 func (d *Display) drawPPUDebugOverlay(screen *ebiten.Image) {
 	// Darken background
 	vector.DrawFilledRect(screen, 0, 0, float32(ScaledWidth()), float32(ScaledHeight()), color.RGBA{0, 0, 0, 220}, false)
