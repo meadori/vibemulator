@@ -69,6 +69,7 @@ func main() {
 
 	// Start the gRPC Controller Server
 	grpcServer := server.NewGRPCServer()
+	grpcServer.SetBus(b) // Connect the emulator bus for RL state extraction
 	if err := grpcServer.Start(50051); err != nil {
 		log.Fatalf("Failed to start gRPC server: %v", err)
 	}

@@ -75,7 +75,35 @@ You can replay a recorded session by streaming the script through the provided g
     go run cmd/client/main.go -script mysession.script
     ```
 
-## Testing
+### Reinforcement Learning (DQN)
+
+Vibemulator features a built-in interface for training Reinforcement Learning (RL) agents, specifically modeled after the famous Deep Q-Network (DQN) architecture that learned to play Atari games from raw pixels.
+
+A `Gymnasium` compatible Python environment connects to the Go emulator via gRPC. This allows the Python agent to receive raw frame buffers (screen pixels), send controller button presses, and read raw NES RAM to calculate custom rewards (e.g., Mario's score or position).
+
+### Setup the RL Environment
+
+To set up the Python virtual environment, install the data-science dependencies (`torch`, `gymnasium`, `numpy`, `grpcio`), and compile the protocol buffers, run:
+
+```bash
+make rl-setup
+```
+
+### Training an Agent
+
+1. First, start the emulator with a ROM (e.g., Super Mario Bros):
+   ```bash
+   ./vibemulator /path/to/super_mario_bros.nes
+   ```
+
+2. In a separate terminal, launch the PyTorch training loop:
+   ```bash
+   make rl-train
+   ```
+
+*(Note: You will need to customize the memory addresses read in `rl/vibemulator_env.py` to match the specific RAM map of the game you are trying to train.)*
+
+# Testing
 
 To run the tests, use the following command:
 

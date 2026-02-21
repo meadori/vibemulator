@@ -3,7 +3,7 @@ GO_BINARY = vibemulator
 GO_SOURCES = $(wildcard *.go) $(wildcard **/*.go)
 GO_PACKAGES = ./...
 
-.PHONY: all build run test clean deps check_go_version fmt
+.PHONY: all build run test clean deps check_go_version fmt rl-setup rl-train
 
 all: build fmt
 
@@ -27,6 +27,17 @@ test: deps
 nestest: deps
 	@echo "Running nestest CPU test..."
 	@go run nestest/main.go
+
+rl-setup:
+	@echo "Setting up Python Reinforcement Learning environment..."
+	python3 -m venv venv
+	. venv/bin/activate && pip install -r rl/requirements.txt
+	. venv/bin/activate && python -m grpc_tools.protoc -I. --python_out=./rl --grpc_python_out=./rl api/controller.proto
+
+rl-train: build
+	@echo "Starting RL Training..."
+	@echo "Make sure to run the emulator first in another terminal: ./vibemulator /path/to/game.nes"
+	. venv/bin/activate && cd rl && python train_dqn.py
 
 clean:
 	@echo "Cleaning build artifacts..."

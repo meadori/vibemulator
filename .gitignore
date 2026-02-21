@@ -1,23 +1,6 @@
-# Go binaries and packages
-*.exe
-*.test
-*.prof
-
-# Project-specific binary
-vibemulator
-
-# IDE-specific files
-.idea/
-.vscode/
-
-# Build outputs
-/bin/
-/pkg/
-
-# Nestest outputs and test ROMs
-nestest/testdata/nestest.nes
-diff.log
-my_nestest.log
-
-.bin/
-*.sav
+venv/
+__pycache__/
+*.pyc
+rl/api/*_pb2.py
+rl/api/*_pb2_grpc.py
+rl/models/

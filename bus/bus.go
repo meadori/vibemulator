@@ -116,6 +116,11 @@ func (b *Bus) Clock() {
 	b.SystemClocks++
 }
 
+// GetFramePixels returns the raw PPU frame buffer for the RL Agent
+func (b *Bus) GetFramePixels() []byte {
+	return b.PPU.GetFrame().Pix
+}
+
 // Read reads a byte from the bus.
 func (b *Bus) Read(addr uint16) byte {
 	var data byte
