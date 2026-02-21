@@ -369,16 +369,28 @@ func (d *Display) Draw(screen *ebiten.Image) {
 
 		// VIBEMULATOR Logo (X: 350+)
 		logoText := "VIBEMULATOR"
-		logoImg := ebiten.NewImage(len(logoText)*6, 16)
+		logoImg := ebiten.NewImage((len(logoText)*6)+10, 16)
 		ebitenutil.DebugPrintAt(logoImg, logoText, 0, 0)
 
 		logOp := &ebiten.DrawImageOptions{}
-		logOp.GeoM.Scale(2.5, 2.5)
-		logOp.GeoM.Skew(-0.15, 0)
-		logOp.GeoM.Translate(350, 4)
-		// NES Red logo
-		logOp.ColorScale.ScaleWithColor(color.RGBA{220, 50, 50, 255})
-		screen.DrawImage(logoImg, logOp)
+		logOp.GeoM.Scale(3.0, 3.0)
+
+		// Helper to draw the logo with an offset and color
+		drawLogoOffset := func(dx, dy float64, c color.Color) {
+			op := *logOp
+			op.GeoM.Translate(350+dx, 2+dy)
+			op.ColorScale.ScaleWithColor(c)
+			screen.DrawImage(logoImg, &op)
+		}
+		// 1. Draw crisp black outline (Up, Down, Left, Right)
+		black := color.RGBA{0, 0, 0, 255}
+		drawLogoOffset(-1, 0, black)
+		drawLogoOffset(1, 0, black)
+		drawLogoOffset(0, -1, black)
+		drawLogoOffset(0, 1, black)
+
+		// 2. Draw Main Red Logo
+		drawLogoOffset(0, 0, color.RGBA{220, 50, 50, 255})
 	}
 
 	// Draw PPU Debug Overlay
