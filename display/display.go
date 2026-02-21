@@ -234,7 +234,6 @@ func (d *Display) Update() error {
 		if err := d.bus.LoadState("vibemulator.sav"); err != nil {
 			log.Printf("Error loading state: %v\n", err)
 		} else {
-			d.bus.PPU.RenderFullFrame() // Redraw loaded frame
 			log.Println("State loaded successfully.")
 		}
 	}
@@ -258,9 +257,6 @@ func (d *Display) Update() error {
 
 		// Load it instantly into the bus
 		d.bus.LoadStateFromMemory(lastState)
-
-		// Force the PPU to redraw the screen buffer so we actually SEE the rewind
-		d.bus.PPU.RenderFullFrame()
 
 		// We DO NOT run the emulator clock loop below, so time moves backward.
 	} else if !isRewinding && d.bus.HasCartridge() {

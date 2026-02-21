@@ -265,27 +265,6 @@ func (p *PPU) Clock() {
 	}
 }
 
-// RenderFullFrame forces the PPU to completely redraw its internal frame buffer from the current state.
-// This is used for rewinding/save-states to ensure the screen instantly reflects the loaded VRAM/OAM.
-func (p *PPU) RenderFullFrame() {
-	// Save the current exact cycle/scanline
-	origCycle := p.Cycle
-	origScanline := p.Scanline
-
-	// Redraw every visible pixel without advancing internal timers
-	for scanline := 0; scanline < 240; scanline++ {
-		p.Scanline = scanline
-		for cycle := 1; cycle <= 256; cycle++ {
-			p.Cycle = cycle
-			p.renderPixel()
-		}
-	}
-
-	// Restore exact cycle/scanline
-	p.Cycle = origCycle
-	p.Scanline = origScanline
-}
-
 // PPURead reads from PPU memory.
 func (p *PPU) PPURead(addr uint16) byte {
 	var data byte
