@@ -54,6 +54,32 @@ func (b *Bus) LoadCartridge(cart *cartridge.Cartridge) error {
 	return nil
 }
 
+// EjectCartridge removes the cartridge from the bus.
+func (b *Bus) EjectCartridge() {
+	log.Println("Ejecting cartridge from bus")
+	b.PowerOff()
+	b.cart = nil
+	b.PPU.ConnectCartridge(nil)
+}
+
+// PowerOff silences the system and resets internal state but keeps the cartridge.
+func (b *Bus) PowerOff() {
+	log.Println("Powering off bus")
+	b.APU.CPUWrite(0x4015, 0) // Disable all sound channels
+	b.PPU.Reset()
+	// Clear internal RAM
+	for i := range b.ram {
+		b.ram[i] = 0
+	}
+}
+
+// PowerOn resets the system components to start execution.
+func (b *Bus) PowerOn() {
+	log.Println("Powering on bus")
+	b.PPU.Reset()
+	b.cpu.Reset()
+}
+
 // HasCartridge returns true if a cartridge is currently loaded.
 func (b *Bus) HasCartridge() bool {
 	return b.cart != nil

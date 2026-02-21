@@ -118,6 +118,9 @@ func (p *PPU) GetFrame() *image.RGBA {
 // ConnectCartridge connects the cartridge to the PPU.
 func (p *PPU) ConnectCartridge(cart *cartridge.Cartridge) {
 	p.cart = cart
+	if cart == nil {
+		return
+	}
 	mirror := p.cart.Mapper.GetMirroring()
 	if mirror == cartridge.MirrorVertical {
 		p.nt_map = [4]uint16{0x0000, 0x0400, 0x0000, 0x0400}

@@ -83,6 +83,7 @@ type Display struct {
 	frameCount   int
 	frameRate    int
 	isRewinding  bool
+	powerOn      bool
 }
 
 // New creates a new Display instance.
@@ -140,6 +141,7 @@ func New(b *bus.Bus, srv *server.GRPCServer, recFile *os.File, initialRomPath st
 		pt0Pix:        make([]byte, 128*128*4),
 		pt1Pix:        make([]byte, 128*128*4),
 		rewindBuffer:  make([]bus.State, 0, 1200), // Pre-allocate up to 1200 states (~20 seconds of rewind if sampled every frame)
+		powerOn:       true,
 	}
 }
 
@@ -150,6 +152,7 @@ func (d *Display) loadROM(path string) {
 	}
 	d.bus.LoadCartridge(cart)
 	d.romName = filepath.Base(path)
+	d.powerOn = true
 }
 
 func (d *Display) writeRecord(frames int, p1, p2 [8]bool) {
@@ -208,8 +211,15 @@ func (d *Display) Update() error {
 
 		if y >= 5 && y <= 45 { // Inside the button Y boundaries
 			if x >= 60 && x <= 140 {
-				// POWER (Exit)
-				os.Exit(0)
+				// POWER Toggle
+				if d.powerOn {
+					d.powerOn = false
+					d.bus.PowerOff()
+					d.rewindBuffer = d.rewindBuffer[:0] // Clear history
+				} else {
+					d.powerOn = true
+					d.bus.PowerOn()
+				}
 			} else if x >= 150 && x <= 230 {
 				// RESET
 				d.bus.Reset()
@@ -314,8 +324,8 @@ func (d *Display) Update() error {
 	d.bus.SetController2State(buttonsP2)
 	d.currentButtonsP2 = buttonsP2
 
-	// Generate TV Static if no cartridge is loaded
-	if !d.bus.HasCartridge() {
+	// Generate TV Static if no cartridge is loaded or power is off
+	if !d.powerOn || !d.bus.HasCartridge() {
 		for i := 0; i < len(d.staticPix); i += 4 {
 			val := byte(rand.Intn(256))
 			d.staticPix[i] = val
@@ -347,7 +357,7 @@ func (d *Display) Update() error {
 
 	// Run the emulator for one frame's worth of PPU cycles.
 	// 89342 PPU cycles per frame.
-	if !d.isRewinding {
+	if d.powerOn && !d.isRewinding {
 		for i := 0; i < 89342; i++ {
 			d.bus.Clock()
 		}
@@ -366,7 +376,7 @@ func (d *Display) Draw(screen *ebiten.Image) {
 
 	// Determine what to show on the TV
 	var rawScreen *ebiten.Image
-	if d.bus.HasCartridge() {
+	if d.powerOn && d.bus.HasCartridge() {
 		rawScreen = ebiten.NewImageFromImage(d.bus.PPU.GetFrame())
 		// Apply CRT Scanlines directly over the game frame before scaling
 		rawScreen.DrawImage(d.scanlineImage, nil)
@@ -411,7 +421,7 @@ func (d *Display) Draw(screen *ebiten.Image) {
 		vector.DrawFilledRect(screen, ledX-10, ledY-10, 20, 20, color.RGBA{30, 30, 30, 255}, false)
 
 		// Blink logic: If timer is active, toggle glow every 4 frames. If timer is 0, stay solidly glowing.
-		if d.resetBlinkTimer == 0 || (d.resetBlinkTimer/4)%2 == 0 {
+		if d.powerOn && (d.resetBlinkTimer == 0 || (d.resetBlinkTimer/4)%2 == 0) {
 			// LED glow (outer)
 			vector.DrawFilledCircle(screen, ledX, ledY, 8, color.RGBA{200, 0, 0, 80}, false)
 			// LED glow (inner)
@@ -479,6 +489,8 @@ func (d *Display) drawVCRStatus(screen *ebiten.Image) {
 		} else {
 			vcrState = "      "
 		}
+	} else if !d.powerOn {
+		vcrState = "POWER OFF"
 	} else {
 		vcrState = fmt.Sprintf("PLAY > %d FPS", d.frameRate)
 	}
