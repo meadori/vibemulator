@@ -219,12 +219,16 @@ func (a *APU) output() float32 {
 
 // Clock performs one APU clock cycle.
 func (a *APU) Clock() {
-	// The pulse, triangle, and noise channels are clocked every CPU clock cycle.
-	a.pulse1.Clock()
-	a.pulse2.Clock()
+	// Triangle, Noise, and DMC are clocked every CPU cycle.
 	a.triangle.Clock()
 	a.noise.Clock()
 	a.dmc.Clock(a.bus)
+
+	// Pulse channels are clocked every APU cycle (every 2 CPU cycles).
+	if a.cycle%2 == 0 {
+		a.pulse1.Clock()
+		a.pulse2.Clock()
+	}
 
 	// Check for DMC IRQ
 	if a.dmc.irqPending {
@@ -342,21 +346,24 @@ func (p *PulseChannel) targetPeriod() uint16 {
 }
 
 func (p *PulseChannel) clockSweep() {
-	if p.sweepReloadFlag {
-		p.sweepCounter = p.sweepPeriod
-		p.sweepReloadFlag = false
+	// 1. If the divider's counter is zero, the sweep is enabled, and the shift count is non-zero, the period is updated.
+	if p.sweepCounter == 0 && p.sweepEnabled && p.sweepShift > 0 && p.timer >= 8 {
+		target := p.targetPeriod()
+		if target <= 0x7FF {
+			p.timer = target
+		}
 	}
 
-	if p.sweepCounter > 0 {
-		p.sweepCounter--
-	} else {
+	// 2. If the divider's counter is zero or the reload flag is true, the counter is set to P. Otherwise, decremented.
+	if p.sweepCounter == 0 || p.sweepReloadFlag {
 		p.sweepCounter = p.sweepPeriod
-		if p.sweepEnabled && p.sweepShift > 0 && p.timer >= 8 {
-			target := p.targetPeriod()
-			if target <= 0x7FF {
-				p.timer = target
-			}
-		}
+	} else {
+		p.sweepCounter--
+	}
+
+	// 3. If the reload flag is true, it is cleared.
+	if p.sweepReloadFlag {
+		p.sweepReloadFlag = false
 	}
 }
 
@@ -399,7 +406,7 @@ func (p *PulseChannel) Clock() {
 		p.timerCounter--
 	} else {
 		p.timerCounter = p.timer
-		p.dutySequencer = (p.dutySequencer + 1) % 8
+		p.dutySequencer = (p.dutySequencer - 1) & 0x07
 	}
 }
 
@@ -538,14 +545,10 @@ func (t *TriangleChannel) output() byte {
 	if !t.enabled {
 		return 0
 	}
-	if t.lengthCounter == 0 {
-		return 0
-	}
-	if t.linearCounter == 0 {
-		return 0
-	}
-	if t.timer < 2 { // Supersonic
-		return 0
+	// The triangle channel doesn't output 0 when muted by counters or frequency;
+	// it simply halts and outputs its current step value, preventing pops.
+	if t.lengthCounter == 0 || t.linearCounter == 0 || t.timer < 2 {
+		return triangleWaveform[t.dutySequencer]
 	}
 	return triangleWaveform[t.dutySequencer]
 }
@@ -636,7 +639,8 @@ func (a *APU) CPUWrite(addr uint16, data byte) {
 		a.irqInhibit = (data>>6)&1 == 1
 		a.frameCounter = 0
 		if a.sequenceMode == 1 {
-			// 5-step mode clocks length counters and sweeps immediately
+			// 5-step mode clocks envelopes, linear counter, length counters, and sweeps immediately
+			a.clockEnvelopesAndLinearCounter()
 			a.clockLengthAndSweeps()
 		}
 	}
