@@ -3,7 +3,7 @@ GO_BINARY = vibemulator
 GO_SOURCES = $(wildcard *.go) $(wildcard **/*.go)
 GO_PACKAGES = ./...
 
-.PHONY: all build run test clean deps check_go_version fmt rl-setup rl-train
+.PHONY: all build run test clean deps check_go_version fmt rl-setup rl-train vdb
 
 all: build fmt
 
@@ -27,6 +27,10 @@ test: deps
 nestest: deps
 	@echo "Running nestest CPU test..."
 	@go run nestest/main.go
+
+vdb:
+	@echo "Starting Vibemulator DeBugger (VDB)..."
+	@go run cmd/vdb/main.go
 
 rl-setup:
 	@echo "Setting up Python Reinforcement Learning environment..."

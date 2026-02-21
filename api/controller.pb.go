@@ -21,6 +21,194 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type CPUStateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Pc            uint32                 `protobuf:"varint,1,opt,name=pc,proto3" json:"pc,omitempty"`
+	Sp            uint32                 `protobuf:"varint,2,opt,name=sp,proto3" json:"sp,omitempty"`
+	A             uint32                 `protobuf:"varint,3,opt,name=a,proto3" json:"a,omitempty"`
+	X             uint32                 `protobuf:"varint,4,opt,name=x,proto3" json:"x,omitempty"`
+	Y             uint32                 `protobuf:"varint,5,opt,name=y,proto3" json:"y,omitempty"`
+	Status        uint32                 `protobuf:"varint,6,opt,name=status,proto3" json:"status,omitempty"`
+	Cycles        uint32                 `protobuf:"varint,7,opt,name=cycles,proto3" json:"cycles,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CPUStateResponse) Reset() {
+	*x = CPUStateResponse{}
+	mi := &file_api_controller_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CPUStateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CPUStateResponse) ProtoMessage() {}
+
+func (x *CPUStateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_controller_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CPUStateResponse.ProtoReflect.Descriptor instead.
+func (*CPUStateResponse) Descriptor() ([]byte, []int) {
+	return file_api_controller_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *CPUStateResponse) GetPc() uint32 {
+	if x != nil {
+		return x.Pc
+	}
+	return 0
+}
+
+func (x *CPUStateResponse) GetSp() uint32 {
+	if x != nil {
+		return x.Sp
+	}
+	return 0
+}
+
+func (x *CPUStateResponse) GetA() uint32 {
+	if x != nil {
+		return x.A
+	}
+	return 0
+}
+
+func (x *CPUStateResponse) GetX() uint32 {
+	if x != nil {
+		return x.X
+	}
+	return 0
+}
+
+func (x *CPUStateResponse) GetY() uint32 {
+	if x != nil {
+		return x.Y
+	}
+	return 0
+}
+
+func (x *CPUStateResponse) GetStatus() uint32 {
+	if x != nil {
+		return x.Status
+	}
+	return 0
+}
+
+func (x *CPUStateResponse) GetCycles() uint32 {
+	if x != nil {
+		return x.Cycles
+	}
+	return 0
+}
+
+type MemoryBlockRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Address       uint32                 `protobuf:"varint,1,opt,name=address,proto3" json:"address,omitempty"`
+	Size          uint32                 `protobuf:"varint,2,opt,name=size,proto3" json:"size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemoryBlockRequest) Reset() {
+	*x = MemoryBlockRequest{}
+	mi := &file_api_controller_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemoryBlockRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemoryBlockRequest) ProtoMessage() {}
+
+func (x *MemoryBlockRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_controller_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemoryBlockRequest.ProtoReflect.Descriptor instead.
+func (*MemoryBlockRequest) Descriptor() ([]byte, []int) {
+	return file_api_controller_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *MemoryBlockRequest) GetAddress() uint32 {
+	if x != nil {
+		return x.Address
+	}
+	return 0
+}
+
+func (x *MemoryBlockRequest) GetSize() uint32 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+type MemoryBlockResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemoryBlockResponse) Reset() {
+	*x = MemoryBlockResponse{}
+	mi := &file_api_controller_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemoryBlockResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemoryBlockResponse) ProtoMessage() {}
+
+func (x *MemoryBlockResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_controller_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemoryBlockResponse.ProtoReflect.Descriptor instead.
+func (*MemoryBlockResponse) Descriptor() ([]byte, []int) {
+	return file_api_controller_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *MemoryBlockResponse) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
 type StateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Filename      string                 `protobuf:"bytes,1,opt,name=filename,proto3" json:"filename,omitempty"`
@@ -30,7 +218,7 @@ type StateRequest struct {
 
 func (x *StateRequest) Reset() {
 	*x = StateRequest{}
-	mi := &file_api_controller_proto_msgTypes[0]
+	mi := &file_api_controller_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -42,7 +230,7 @@ func (x *StateRequest) String() string {
 func (*StateRequest) ProtoMessage() {}
 
 func (x *StateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_controller_proto_msgTypes[0]
+	mi := &file_api_controller_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55,7 +243,7 @@ func (x *StateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StateRequest.ProtoReflect.Descriptor instead.
 func (*StateRequest) Descriptor() ([]byte, []int) {
-	return file_api_controller_proto_rawDescGZIP(), []int{0}
+	return file_api_controller_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *StateRequest) GetFilename() string {
@@ -84,7 +272,7 @@ type InputState struct {
 
 func (x *InputState) Reset() {
 	*x = InputState{}
-	mi := &file_api_controller_proto_msgTypes[1]
+	mi := &file_api_controller_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -96,7 +284,7 @@ func (x *InputState) String() string {
 func (*InputState) ProtoMessage() {}
 
 func (x *InputState) ProtoReflect() protoreflect.Message {
-	mi := &file_api_controller_proto_msgTypes[1]
+	mi := &file_api_controller_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -109,7 +297,7 @@ func (x *InputState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InputState.ProtoReflect.Descriptor instead.
 func (*InputState) Descriptor() ([]byte, []int) {
-	return file_api_controller_proto_rawDescGZIP(), []int{1}
+	return file_api_controller_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *InputState) GetPlayerIndex() int32 {
@@ -185,7 +373,7 @@ type FrameResponse struct {
 
 func (x *FrameResponse) Reset() {
 	*x = FrameResponse{}
-	mi := &file_api_controller_proto_msgTypes[2]
+	mi := &file_api_controller_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -197,7 +385,7 @@ func (x *FrameResponse) String() string {
 func (*FrameResponse) ProtoMessage() {}
 
 func (x *FrameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_controller_proto_msgTypes[2]
+	mi := &file_api_controller_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -210,7 +398,7 @@ func (x *FrameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FrameResponse.ProtoReflect.Descriptor instead.
 func (*FrameResponse) Descriptor() ([]byte, []int) {
-	return file_api_controller_proto_rawDescGZIP(), []int{2}
+	return file_api_controller_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *FrameResponse) GetPixels() []byte {
@@ -229,7 +417,7 @@ type MemoryRequest struct {
 
 func (x *MemoryRequest) Reset() {
 	*x = MemoryRequest{}
-	mi := &file_api_controller_proto_msgTypes[3]
+	mi := &file_api_controller_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -241,7 +429,7 @@ func (x *MemoryRequest) String() string {
 func (*MemoryRequest) ProtoMessage() {}
 
 func (x *MemoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_controller_proto_msgTypes[3]
+	mi := &file_api_controller_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -254,7 +442,7 @@ func (x *MemoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MemoryRequest.ProtoReflect.Descriptor instead.
 func (*MemoryRequest) Descriptor() ([]byte, []int) {
-	return file_api_controller_proto_rawDescGZIP(), []int{3}
+	return file_api_controller_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *MemoryRequest) GetAddress() uint32 {
@@ -273,7 +461,7 @@ type MemoryResponse struct {
 
 func (x *MemoryResponse) Reset() {
 	*x = MemoryResponse{}
-	mi := &file_api_controller_proto_msgTypes[4]
+	mi := &file_api_controller_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -285,7 +473,7 @@ func (x *MemoryResponse) String() string {
 func (*MemoryResponse) ProtoMessage() {}
 
 func (x *MemoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_controller_proto_msgTypes[4]
+	mi := &file_api_controller_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -298,7 +486,7 @@ func (x *MemoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MemoryResponse.ProtoReflect.Descriptor instead.
 func (*MemoryResponse) Descriptor() ([]byte, []int) {
-	return file_api_controller_proto_rawDescGZIP(), []int{4}
+	return file_api_controller_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *MemoryResponse) GetData() uint32 {
@@ -316,7 +504,7 @@ type Empty struct {
 
 func (x *Empty) Reset() {
 	*x = Empty{}
-	mi := &file_api_controller_proto_msgTypes[5]
+	mi := &file_api_controller_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -328,7 +516,7 @@ func (x *Empty) String() string {
 func (*Empty) ProtoMessage() {}
 
 func (x *Empty) ProtoReflect() protoreflect.Message {
-	mi := &file_api_controller_proto_msgTypes[5]
+	mi := &file_api_controller_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -341,14 +529,27 @@ func (x *Empty) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Empty.ProtoReflect.Descriptor instead.
 func (*Empty) Descriptor() ([]byte, []int) {
-	return file_api_controller_proto_rawDescGZIP(), []int{5}
+	return file_api_controller_proto_rawDescGZIP(), []int{8}
 }
 
 var File_api_controller_proto protoreflect.FileDescriptor
 
 const file_api_controller_proto_rawDesc = "" +
 	"\n" +
-	"\x14api/controller.proto\x12\x03api\"*\n" +
+	"\x14api/controller.proto\x12\x03api\"\x8c\x01\n" +
+	"\x10CPUStateResponse\x12\x0e\n" +
+	"\x02pc\x18\x01 \x01(\rR\x02pc\x12\x0e\n" +
+	"\x02sp\x18\x02 \x01(\rR\x02sp\x12\f\n" +
+	"\x01a\x18\x03 \x01(\rR\x01a\x12\f\n" +
+	"\x01x\x18\x04 \x01(\rR\x01x\x12\f\n" +
+	"\x01y\x18\x05 \x01(\rR\x01y\x12\x16\n" +
+	"\x06status\x18\x06 \x01(\rR\x06status\x12\x16\n" +
+	"\x06cycles\x18\a \x01(\rR\x06cycles\"B\n" +
+	"\x12MemoryBlockRequest\x12\x18\n" +
+	"\aaddress\x18\x01 \x01(\rR\aaddress\x12\x12\n" +
+	"\x04size\x18\x02 \x01(\rR\x04size\")\n" +
+	"\x13MemoryBlockResponse\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"*\n" +
 	"\fStateRequest\x12\x1a\n" +
 	"\bfilename\x18\x01 \x01(\tR\bfilename\"\xc7\x01\n" +
 	"\n" +
@@ -368,7 +569,7 @@ const file_api_controller_proto_rawDesc = "" +
 	"\aaddress\x18\x01 \x01(\rR\aaddress\"$\n" +
 	"\x0eMemoryResponse\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\rR\x04data\"\a\n" +
-	"\x05Empty2\x83\x02\n" +
+	"\x05Empty2\xe8\x03\n" +
 	"\x11ControllerService\x120\n" +
 	"\vStreamInput\x12\x0f.api.InputState\x1a\n" +
 	".api.Empty\"\x00(\x010\x01\x12,\n" +
@@ -380,7 +581,19 @@ const file_api_controller_proto_rawDesc = "" +
 	".api.Empty\"\x00\x12'\n" +
 	"\vResetSystem\x12\n" +
 	".api.Empty\x1a\n" +
-	".api.Empty\"\x00B$Z\"github.com/meadori/vibemulator/apib\x06proto3"
+	".api.Empty\"\x00\x12!\n" +
+	"\x05Pause\x12\n" +
+	".api.Empty\x1a\n" +
+	".api.Empty\"\x00\x12\"\n" +
+	"\x06Resume\x12\n" +
+	".api.Empty\x1a\n" +
+	".api.Empty\"\x00\x12 \n" +
+	"\x04Step\x12\n" +
+	".api.Empty\x1a\n" +
+	".api.Empty\"\x00\x122\n" +
+	"\vGetCPUState\x12\n" +
+	".api.Empty\x1a\x15.api.CPUStateResponse\"\x00\x12F\n" +
+	"\x0fReadMemoryBlock\x12\x17.api.MemoryBlockRequest\x1a\x18.api.MemoryBlockResponse\"\x00B$Z\"github.com/meadori/vibemulator/apib\x06proto3"
 
 var (
 	file_api_controller_proto_rawDescOnce sync.Once
@@ -394,31 +607,44 @@ func file_api_controller_proto_rawDescGZIP() []byte {
 	return file_api_controller_proto_rawDescData
 }
 
-var file_api_controller_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_api_controller_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_api_controller_proto_goTypes = []any{
-	(*StateRequest)(nil),   // 0: api.StateRequest
-	(*InputState)(nil),     // 1: api.InputState
-	(*FrameResponse)(nil),  // 2: api.FrameResponse
-	(*MemoryRequest)(nil),  // 3: api.MemoryRequest
-	(*MemoryResponse)(nil), // 4: api.MemoryResponse
-	(*Empty)(nil),          // 5: api.Empty
+	(*CPUStateResponse)(nil),    // 0: api.CPUStateResponse
+	(*MemoryBlockRequest)(nil),  // 1: api.MemoryBlockRequest
+	(*MemoryBlockResponse)(nil), // 2: api.MemoryBlockResponse
+	(*StateRequest)(nil),        // 3: api.StateRequest
+	(*InputState)(nil),          // 4: api.InputState
+	(*FrameResponse)(nil),       // 5: api.FrameResponse
+	(*MemoryRequest)(nil),       // 6: api.MemoryRequest
+	(*MemoryResponse)(nil),      // 7: api.MemoryResponse
+	(*Empty)(nil),               // 8: api.Empty
 }
 var file_api_controller_proto_depIdxs = []int32{
-	1, // 0: api.ControllerService.StreamInput:input_type -> api.InputState
-	5, // 1: api.ControllerService.GetFrame:input_type -> api.Empty
-	3, // 2: api.ControllerService.ReadMemory:input_type -> api.MemoryRequest
-	0, // 3: api.ControllerService.LoadState:input_type -> api.StateRequest
-	5, // 4: api.ControllerService.ResetSystem:input_type -> api.Empty
-	5, // 5: api.ControllerService.StreamInput:output_type -> api.Empty
-	2, // 6: api.ControllerService.GetFrame:output_type -> api.FrameResponse
-	4, // 7: api.ControllerService.ReadMemory:output_type -> api.MemoryResponse
-	5, // 8: api.ControllerService.LoadState:output_type -> api.Empty
-	5, // 9: api.ControllerService.ResetSystem:output_type -> api.Empty
-	5, // [5:10] is the sub-list for method output_type
-	0, // [0:5] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	4,  // 0: api.ControllerService.StreamInput:input_type -> api.InputState
+	8,  // 1: api.ControllerService.GetFrame:input_type -> api.Empty
+	6,  // 2: api.ControllerService.ReadMemory:input_type -> api.MemoryRequest
+	3,  // 3: api.ControllerService.LoadState:input_type -> api.StateRequest
+	8,  // 4: api.ControllerService.ResetSystem:input_type -> api.Empty
+	8,  // 5: api.ControllerService.Pause:input_type -> api.Empty
+	8,  // 6: api.ControllerService.Resume:input_type -> api.Empty
+	8,  // 7: api.ControllerService.Step:input_type -> api.Empty
+	8,  // 8: api.ControllerService.GetCPUState:input_type -> api.Empty
+	1,  // 9: api.ControllerService.ReadMemoryBlock:input_type -> api.MemoryBlockRequest
+	8,  // 10: api.ControllerService.StreamInput:output_type -> api.Empty
+	5,  // 11: api.ControllerService.GetFrame:output_type -> api.FrameResponse
+	7,  // 12: api.ControllerService.ReadMemory:output_type -> api.MemoryResponse
+	8,  // 13: api.ControllerService.LoadState:output_type -> api.Empty
+	8,  // 14: api.ControllerService.ResetSystem:output_type -> api.Empty
+	8,  // 15: api.ControllerService.Pause:output_type -> api.Empty
+	8,  // 16: api.ControllerService.Resume:output_type -> api.Empty
+	8,  // 17: api.ControllerService.Step:output_type -> api.Empty
+	0,  // 18: api.ControllerService.GetCPUState:output_type -> api.CPUStateResponse
+	2,  // 19: api.ControllerService.ReadMemoryBlock:output_type -> api.MemoryBlockResponse
+	10, // [10:20] is the sub-list for method output_type
+	0,  // [0:10] is the sub-list for method input_type
+	0,  // [0:0] is the sub-list for extension type_name
+	0,  // [0:0] is the sub-list for extension extendee
+	0,  // [0:0] is the sub-list for field type_name
 }
 
 func init() { file_api_controller_proto_init() }
@@ -432,7 +658,7 @@ func file_api_controller_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_controller_proto_rawDesc), len(file_api_controller_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

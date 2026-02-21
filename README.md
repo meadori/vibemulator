@@ -75,6 +75,20 @@ You can replay a recorded session by streaming the script through the provided g
     go run cmd/client/main.go -script mysession.script
     ```
 
+### VDB (Vibemulator DeBugger)
+VDB is a GDB-inspired command-line debugger that connects to a running emulator instance via gRPC. It allows you to pause execution, step through CPU instructions one by one, and inspect the CPU registers and NES memory in real-time.
+
+To launch VDB while the emulator is running, open a new terminal and run:
+```bash
+make vdb
+```
+Once connected, you will be presented with a `(vdb)` prompt. You can use the following commands:
+*   `pause` / `p`: Pause the emulator.
+*   `run` / `c`: Resume execution.
+*   `step` / `s`: Execute a single CPU instruction and print the registers.
+*   `regs` / `i r`: Print the current state of the CPU registers (A, X, Y, SP, PC, Status).
+*   `x/<count> <address>`: Dump hexadecimal memory starting at a specific address (e.g., `x/16 0x0000`).
+
 ### Reinforcement Learning (DQN)
 
 Vibemulator features a built-in interface for training Reinforcement Learning (RL) agents, specifically modeled after the famous Deep Q-Network (DQN) architecture that learned to play Atari games from raw pixels.

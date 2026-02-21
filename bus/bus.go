@@ -23,6 +23,10 @@ type Bus struct {
 	joy1 *controller.Controller
 	joy2 *controller.Controller
 
+	// Debugger specific fields
+	IsPaused      bool
+	StepRequested bool
+
 	// SystemClocks keeps track of the total number of clock cycles.
 	SystemClocks int
 }
@@ -80,6 +84,21 @@ func (b *Bus) PowerOn() {
 	b.cpu.Reset()
 }
 
+// SetPaused toggles the debugger pause state.
+func (b *Bus) SetPaused(paused bool) {
+	b.IsPaused = paused
+}
+
+// RequestStep signals the emulator to advance one instruction.
+func (b *Bus) RequestStep() {
+	b.StepRequested = true
+}
+
+// IsInstructionComplete checks if the CPU has finished its instruction.
+func (b *Bus) IsInstructionComplete() bool {
+	return b.cpu.IsInstructionComplete()
+}
+
 // HasCartridge returns true if a cartridge is currently loaded.
 func (b *Bus) HasCartridge() bool {
 	return b.cart != nil
@@ -119,6 +138,21 @@ func (b *Bus) Clock() {
 // GetFramePixels returns the raw PPU frame buffer for the RL Agent
 func (b *Bus) GetFramePixels() []byte {
 	return b.PPU.GetFrame().Pix
+}
+
+// GetCPUState returns the CPU register values
+func (b *Bus) GetCPUState() (a, x, y, sp, p byte, pc uint16, cycles int) {
+	return b.cpu.GetState()
+}
+
+// GetMemoryBlock returns a slice of memory bytes
+func (b *Bus) GetMemoryBlock(addr uint16, size uint16) []byte {
+	block := make([]byte, size)
+	for i := uint16(0); i < size; i++ {
+		// Read directly without triggering side effects if possible, but Read() is fine for now
+		block[i] = b.Read(addr + i)
+	}
+	return block
 }
 
 // Read reads a byte from the bus.

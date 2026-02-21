@@ -54,6 +54,16 @@ type CPU struct {
 	irqPending bool
 }
 
+// GetState returns the current values of the CPU registers for the VDB debugger.
+func (c *CPU) GetState() (a, x, y, sp, p byte, pc uint16, cycles int) {
+	return c.A, c.X, c.Y, c.SP, c.P, c.PC, c.Cycles
+}
+
+// IsInstructionComplete returns true if the CPU has finished executing the current instruction.
+func (c *CPU) IsInstructionComplete() bool {
+	return c.Cycles == 0
+}
+
 // New creates a new CPU instance.
 func New() *CPU {
 	c := &CPU{}

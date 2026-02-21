@@ -358,8 +358,22 @@ func (d *Display) Update() error {
 	// Run the emulator for one frame's worth of PPU cycles.
 	// 89342 PPU cycles per frame.
 	if d.powerOn && !d.isRewinding {
-		for i := 0; i < 89342; i++ {
-			d.bus.Clock()
+		if d.bus.IsPaused {
+			if d.bus.StepRequested {
+				// Clock until one full instruction completes (cycles == 0)
+				for {
+					d.bus.Clock()
+					// Since the CPU clocks every 3 system clocks, we need to make sure we hit the cycle boundary correctly
+					if d.bus.SystemClocks%3 == 0 && d.bus.IsInstructionComplete() {
+						break
+					}
+				}
+				d.bus.StepRequested = false
+			}
+		} else {
+			for i := 0; i < 89342; i++ {
+				d.bus.Clock()
+			}
 		}
 	}
 

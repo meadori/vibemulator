@@ -20,6 +20,32 @@ service ControllerService {
 
   // Triggers a hardware reset of the NES (returns game to title screen)
   rpc ResetSystem(Empty) returns (Empty) {}
+
+  // --- VDB (Vibemulator Debugger) Endpoints ---
+  rpc Pause(Empty) returns (Empty) {}
+  rpc Resume(Empty) returns (Empty) {}
+  rpc Step(Empty) returns (Empty) {}
+  rpc GetCPUState(Empty) returns (CPUStateResponse) {}
+  rpc ReadMemoryBlock(MemoryBlockRequest) returns (MemoryBlockResponse) {}
+}
+
+message CPUStateResponse {
+  uint32 pc = 1;
+  uint32 sp = 2;
+  uint32 a = 3;
+  uint32 x = 4;
+  uint32 y = 5;
+  uint32 status = 6;
+  uint32 cycles = 7;
+}
+
+message MemoryBlockRequest {
+  uint32 address = 1;
+  uint32 size = 2;
+}
+
+message MemoryBlockResponse {
+  bytes data = 1;
 }
 
 message StateRequest {

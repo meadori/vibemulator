@@ -19,11 +19,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ControllerService_StreamInput_FullMethodName = "/api.ControllerService/StreamInput"
-	ControllerService_GetFrame_FullMethodName    = "/api.ControllerService/GetFrame"
-	ControllerService_ReadMemory_FullMethodName  = "/api.ControllerService/ReadMemory"
-	ControllerService_LoadState_FullMethodName   = "/api.ControllerService/LoadState"
-	ControllerService_ResetSystem_FullMethodName = "/api.ControllerService/ResetSystem"
+	ControllerService_StreamInput_FullMethodName     = "/api.ControllerService/StreamInput"
+	ControllerService_GetFrame_FullMethodName        = "/api.ControllerService/GetFrame"
+	ControllerService_ReadMemory_FullMethodName      = "/api.ControllerService/ReadMemory"
+	ControllerService_LoadState_FullMethodName       = "/api.ControllerService/LoadState"
+	ControllerService_ResetSystem_FullMethodName     = "/api.ControllerService/ResetSystem"
+	ControllerService_Pause_FullMethodName           = "/api.ControllerService/Pause"
+	ControllerService_Resume_FullMethodName          = "/api.ControllerService/Resume"
+	ControllerService_Step_FullMethodName            = "/api.ControllerService/Step"
+	ControllerService_GetCPUState_FullMethodName     = "/api.ControllerService/GetCPUState"
+	ControllerService_ReadMemoryBlock_FullMethodName = "/api.ControllerService/ReadMemoryBlock"
 )
 
 // ControllerServiceClient is the client API for ControllerService service.
@@ -41,6 +46,12 @@ type ControllerServiceClient interface {
 	LoadState(ctx context.Context, in *StateRequest, opts ...grpc.CallOption) (*Empty, error)
 	// Triggers a hardware reset of the NES (returns game to title screen)
 	ResetSystem(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error)
+	// --- VDB (Vibemulator Debugger) Endpoints ---
+	Pause(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error)
+	Resume(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error)
+	Step(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error)
+	GetCPUState(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*CPUStateResponse, error)
+	ReadMemoryBlock(ctx context.Context, in *MemoryBlockRequest, opts ...grpc.CallOption) (*MemoryBlockResponse, error)
 }
 
 type controllerServiceClient struct {
@@ -104,6 +115,56 @@ func (c *controllerServiceClient) ResetSystem(ctx context.Context, in *Empty, op
 	return out, nil
 }
 
+func (c *controllerServiceClient) Pause(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, ControllerService_Pause_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controllerServiceClient) Resume(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, ControllerService_Resume_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controllerServiceClient) Step(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, ControllerService_Step_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controllerServiceClient) GetCPUState(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*CPUStateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CPUStateResponse)
+	err := c.cc.Invoke(ctx, ControllerService_GetCPUState_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controllerServiceClient) ReadMemoryBlock(ctx context.Context, in *MemoryBlockRequest, opts ...grpc.CallOption) (*MemoryBlockResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MemoryBlockResponse)
+	err := c.cc.Invoke(ctx, ControllerService_ReadMemoryBlock_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ControllerServiceServer is the server API for ControllerService service.
 // All implementations must embed UnimplementedControllerServiceServer
 // for forward compatibility.
@@ -119,6 +180,12 @@ type ControllerServiceServer interface {
 	LoadState(context.Context, *StateRequest) (*Empty, error)
 	// Triggers a hardware reset of the NES (returns game to title screen)
 	ResetSystem(context.Context, *Empty) (*Empty, error)
+	// --- VDB (Vibemulator Debugger) Endpoints ---
+	Pause(context.Context, *Empty) (*Empty, error)
+	Resume(context.Context, *Empty) (*Empty, error)
+	Step(context.Context, *Empty) (*Empty, error)
+	GetCPUState(context.Context, *Empty) (*CPUStateResponse, error)
+	ReadMemoryBlock(context.Context, *MemoryBlockRequest) (*MemoryBlockResponse, error)
 	mustEmbedUnimplementedControllerServiceServer()
 }
 
@@ -143,6 +210,21 @@ func (UnimplementedControllerServiceServer) LoadState(context.Context, *StateReq
 }
 func (UnimplementedControllerServiceServer) ResetSystem(context.Context, *Empty) (*Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResetSystem not implemented")
+}
+func (UnimplementedControllerServiceServer) Pause(context.Context, *Empty) (*Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method Pause not implemented")
+}
+func (UnimplementedControllerServiceServer) Resume(context.Context, *Empty) (*Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method Resume not implemented")
+}
+func (UnimplementedControllerServiceServer) Step(context.Context, *Empty) (*Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method Step not implemented")
+}
+func (UnimplementedControllerServiceServer) GetCPUState(context.Context, *Empty) (*CPUStateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCPUState not implemented")
+}
+func (UnimplementedControllerServiceServer) ReadMemoryBlock(context.Context, *MemoryBlockRequest) (*MemoryBlockResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReadMemoryBlock not implemented")
 }
 func (UnimplementedControllerServiceServer) mustEmbedUnimplementedControllerServiceServer() {}
 func (UnimplementedControllerServiceServer) testEmbeddedByValue()                           {}
@@ -244,6 +326,96 @@ func _ControllerService_ResetSystem_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ControllerService_Pause_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControllerServiceServer).Pause(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControllerService_Pause_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControllerServiceServer).Pause(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControllerService_Resume_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControllerServiceServer).Resume(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControllerService_Resume_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControllerServiceServer).Resume(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControllerService_Step_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControllerServiceServer).Step(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControllerService_Step_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControllerServiceServer).Step(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControllerService_GetCPUState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControllerServiceServer).GetCPUState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControllerService_GetCPUState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControllerServiceServer).GetCPUState(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControllerService_ReadMemoryBlock_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MemoryBlockRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControllerServiceServer).ReadMemoryBlock(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControllerService_ReadMemoryBlock_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControllerServiceServer).ReadMemoryBlock(ctx, req.(*MemoryBlockRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ControllerService_ServiceDesc is the grpc.ServiceDesc for ControllerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -266,6 +438,26 @@ var ControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResetSystem",
 			Handler:    _ControllerService_ResetSystem_Handler,
+		},
+		{
+			MethodName: "Pause",
+			Handler:    _ControllerService_Pause_Handler,
+		},
+		{
+			MethodName: "Resume",
+			Handler:    _ControllerService_Resume_Handler,
+		},
+		{
+			MethodName: "Step",
+			Handler:    _ControllerService_Step_Handler,
+		},
+		{
+			MethodName: "GetCPUState",
+			Handler:    _ControllerService_GetCPUState_Handler,
+		},
+		{
+			MethodName: "ReadMemoryBlock",
+			Handler:    _ControllerService_ReadMemoryBlock_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

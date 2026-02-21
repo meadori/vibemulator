@@ -18,6 +18,10 @@ type EmuInterface interface {
 	GetFramePixels() []byte
 	LoadState(filename string) error
 	Reset()
+	SetPaused(bool)
+	RequestStep()
+	GetCPUState() (a, x, y, sp, p byte, pc uint16, cycles int)
+	GetMemoryBlock(addr uint16, size uint16) []byte
 }
 
 // GRPCServer manages the network controller connections
@@ -99,6 +103,79 @@ func (s *GRPCServer) ResetSystem(ctx context.Context, in *api.Empty) (*api.Empty
 	bus.Reset()
 	return &api.Empty{}, nil
 }
+
+// Pause suspends the emulator loop
+func (s *GRPCServer) Pause(ctx context.Context, in *api.Empty) (*api.Empty, error) {
+	s.mu.Lock()
+	bus := s.emuBus
+	s.mu.Unlock()
+
+	if bus != nil {
+		bus.SetPaused(true)
+	}
+	return &api.Empty{}, nil
+}
+
+// Resume restarts the emulator loop
+func (s *GRPCServer) Resume(ctx context.Context, in *api.Empty) (*api.Empty, error) {
+	s.mu.Lock()
+	bus := s.emuBus
+	s.mu.Unlock()
+
+	if bus != nil {
+		bus.SetPaused(false)
+	}
+	return &api.Empty{}, nil
+}
+
+// Step advances the CPU by one instruction
+func (s *GRPCServer) Step(ctx context.Context, in *api.Empty) (*api.Empty, error) {
+	s.mu.Lock()
+	bus := s.emuBus
+	s.mu.Unlock()
+
+	if bus != nil {
+		bus.RequestStep()
+	}
+	return &api.Empty{}, nil
+}
+
+// GetCPUState returns the CPU register values
+func (s *GRPCServer) GetCPUState(ctx context.Context, in *api.Empty) (*api.CPUStateResponse, error) {
+	s.mu.Lock()
+	bus := s.emuBus
+	s.mu.Unlock()
+
+	if bus == nil {
+		return nil, fmt.Errorf("emulator bus not connected")
+	}
+
+	a, x, y, sp, p, pc, cycles := bus.GetCPUState()
+	return &api.CPUStateResponse{
+		A:      uint32(a),
+		X:      uint32(x),
+		Y:      uint32(y),
+		Sp:     uint32(sp),
+		Status: uint32(p),
+		Pc:     uint32(pc),
+		Cycles: uint32(cycles),
+	}, nil
+}
+
+// ReadMemoryBlock returns a block of raw NES RAM
+func (s *GRPCServer) ReadMemoryBlock(ctx context.Context, in *api.MemoryBlockRequest) (*api.MemoryBlockResponse, error) {
+	s.mu.Lock()
+	bus := s.emuBus
+	s.mu.Unlock()
+
+	if bus == nil {
+		return nil, fmt.Errorf("emulator bus not connected")
+	}
+
+	block := bus.GetMemoryBlock(uint16(in.Address), uint16(in.Size))
+	return &api.MemoryBlockResponse{Data: block}, nil
+}
+
 
 // Start begins listening for gRPC connections on the given port
 func (s *GRPCServer) Start(port int) error {
