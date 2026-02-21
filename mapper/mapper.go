@@ -10,4 +10,6 @@ type Mapper interface {
 	Clock()
 	IRQPending() bool
 	ClearIRQ()
+	Save() []byte
+	Load([]byte) error
 }

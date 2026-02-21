@@ -47,6 +47,9 @@ func (m *mockMapper) Clock() {}
 func (m *mockMapper) IRQPending() bool { return false }
 func (m *mockMapper) ClearIRQ()        {}
 
+func (m *mockMapper) Save() []byte        { return nil }
+func (m *mockMapper) Load(b []byte) error { return nil }
+
 func (m *mockMapper) GetMirroring() byte {
 	return m.mirroring
 }

@@ -199,6 +199,24 @@ func (d *Display) Update() error {
 		d.resetBlinkTimer--
 	}
 
+	// Save States
+	if inpututil.IsKeyJustPressed(ebiten.KeyF5) {
+		log.Println("Saving State to vibemulator.sav...")
+		if err := d.bus.SaveState("vibemulator.sav"); err != nil {
+			log.Printf("Error saving state: %v\n", err)
+		} else {
+			log.Println("State saved successfully.")
+		}
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyF7) {
+		log.Println("Loading State from vibemulator.sav...")
+		if err := d.bus.LoadState("vibemulator.sav"); err != nil {
+			log.Printf("Error loading state: %v\n", err)
+		} else {
+			log.Println("State loaded successfully.")
+		}
+	}
+
 	// Poll controller input (Logical OR local input and remote network input)
 	remoteState := d.grpcServer.GetP1State()
 	buttons := [8]bool{}

@@ -43,6 +43,10 @@ make run ROM_FILE=/path/to/rom.nes
 - **Enter:** Start
 - **Shift:** Select
 
+### Save States
+- **F5:** Save State to `vibemulator.sav`
+- **F7:** Load State from `vibemulator.sav`
+
 ## Network Play & Scripting
 
 Vibemulator includes a built-in gRPC server (port 50051) that allows remote clients to stream controller inputs to the emulator over a network.
