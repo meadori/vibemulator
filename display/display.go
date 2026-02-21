@@ -490,7 +490,7 @@ func (d *Display) drawVCRStatus(screen *ebiten.Image) {
 			"| VCR    : %-14s |\n"+
 			"| ROM    : %-14s |\n"+
 			"| UPTIME : %02d:%02d:%02d      |\n"+
-			"| SYSTEM : NTSC / 60Hz    |\n"+
+			"| SYSTEM : NTSC / 60Hz   |\n"+
 			"+-------------------------+", vcrState, rom, h, m, s)
 
 	// Draw the text
