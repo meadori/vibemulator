@@ -418,11 +418,13 @@ func (d *Display) drawControllerHUD(screen *ebiten.Image) {
 	// Position the controller centered below the TV screen
 	hudWidth, hudHeight := float32(300), float32(110)
 	x := float32(bezelWidth*scalingFactor)/2 - hudWidth/2
-	y := float32(gameScreenY*scalingFactor) + float32(gameScreenHeight*scalingFactor) + 60
+	y := float32(gameScreenY*scalingFactor) + float32(gameScreenHeight*scalingFactor) + 310
 
-	// Base shell (light grey with dark stripe)
+	// Base shell (light grey)
 	vector.DrawFilledRect(screen, x, y, hudWidth, hudHeight, color.RGBA{180, 180, 180, 255}, false)
-	vector.DrawFilledRect(screen, x+20, y+hudHeight/2-10, hudWidth-40, 20, color.RGBA{30, 30, 30, 255}, false)
+
+	// Inner recessed area (slightly darker grey instead of black stripe)
+	vector.DrawFilledRect(screen, x+10, y+10, hudWidth-20, hudHeight-20, color.RGBA{160, 160, 160, 255}, false)
 
 	// D-Pad (Up=4, Down=5, Left=6, Right=7)
 	dpadX, dpadY := x+55, y+55
@@ -468,7 +470,7 @@ func (d *Display) drawControllerHUD(screen *ebiten.Image) {
 	if d.currentButtons[0] {
 		aColor = btnHlColor
 	}
-	// A is higher than B on NES
-	vector.DrawFilledCircle(screen, x+230, y+70, 18, bColor, false)
-	vector.DrawFilledCircle(screen, x+275, y+60, 18, aColor, false)
+	// A and B buttons are horizontally aligned
+	vector.DrawFilledCircle(screen, x+230, y+65, 18, bColor, false)
+	vector.DrawFilledCircle(screen, x+275, y+65, 18, aColor, false)
 }

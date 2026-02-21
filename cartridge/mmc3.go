@@ -17,15 +17,15 @@ type mmc3 struct {
 	chrBanks int
 
 	// IRQ State
-	irqCounter   byte
-	irqLatch     byte
-	irqReload    bool
-	irqEnabled   bool
-	irqPending   bool
-	lastA12      bool
-	a12Delay     int
-	fourScreen   bool
-	mirroring    byte
+	irqCounter byte
+	irqLatch   byte
+	irqReload  bool
+	irqEnabled bool
+	irqPending bool
+	lastA12    bool
+	a12Delay   int
+	fourScreen bool
+	mirroring  byte
 }
 
 func newMMC3(cart *Cartridge) *mmc3 {
@@ -37,12 +37,12 @@ func newMMC3(cart *Cartridge) *mmc3 {
 	mirroring := cart.Mirror & 1
 
 	return &mmc3{
-		prgROM:    cart.PRGROM,
-		chrROM:    cart.CHRROM,
-		prgRAM:    make([]byte, 8192),
-		chrRAM:    cart.IsCHRRAM,
-		prgBanks:  prgBanks,
-		chrBanks:  chrBanks,
+		prgROM:     cart.PRGROM,
+		chrROM:     cart.CHRROM,
+		prgRAM:     make([]byte, 8192),
+		chrRAM:     cart.IsCHRRAM,
+		prgBanks:   prgBanks,
+		chrBanks:   chrBanks,
 		fourScreen: fourScreen,
 		mirroring:  mirroring,
 	}
@@ -154,25 +154,41 @@ func (m *mmc3) PPUMapWrite(addr uint16, data byte) bool {
 func (m *mmc3) getCHRBank(addr uint16) int {
 	if m.chrInversion {
 		switch {
-		case addr <= 0x03FF: return int(m.registers[2]) % m.chrBanks
-		case addr <= 0x07FF: return int(m.registers[3]) % m.chrBanks
-		case addr <= 0x0BFF: return int(m.registers[4]) % m.chrBanks
-		case addr <= 0x0FFF: return int(m.registers[5]) % m.chrBanks
-		case addr <= 0x13FF: return int(m.registers[0] & 0xFE) % m.chrBanks
-		case addr <= 0x17FF: return int((m.registers[0] & 0xFE) | 1) % m.chrBanks
-		case addr <= 0x1BFF: return int(m.registers[1] & 0xFE) % m.chrBanks
-		case addr <= 0x1FFF: return int((m.registers[1] & 0xFE) | 1) % m.chrBanks
+		case addr <= 0x03FF:
+			return int(m.registers[2]) % m.chrBanks
+		case addr <= 0x07FF:
+			return int(m.registers[3]) % m.chrBanks
+		case addr <= 0x0BFF:
+			return int(m.registers[4]) % m.chrBanks
+		case addr <= 0x0FFF:
+			return int(m.registers[5]) % m.chrBanks
+		case addr <= 0x13FF:
+			return int(m.registers[0]&0xFE) % m.chrBanks
+		case addr <= 0x17FF:
+			return int((m.registers[0]&0xFE)|1) % m.chrBanks
+		case addr <= 0x1BFF:
+			return int(m.registers[1]&0xFE) % m.chrBanks
+		case addr <= 0x1FFF:
+			return int((m.registers[1]&0xFE)|1) % m.chrBanks
 		}
 	} else {
 		switch {
-		case addr <= 0x03FF: return int(m.registers[0] & 0xFE) % m.chrBanks
-		case addr <= 0x07FF: return int((m.registers[0] & 0xFE) | 1) % m.chrBanks
-		case addr <= 0x0BFF: return int(m.registers[1] & 0xFE) % m.chrBanks
-		case addr <= 0x0FFF: return int((m.registers[1] & 0xFE) | 1) % m.chrBanks
-		case addr <= 0x13FF: return int(m.registers[2]) % m.chrBanks
-		case addr <= 0x17FF: return int(m.registers[3]) % m.chrBanks
-		case addr <= 0x1BFF: return int(m.registers[4]) % m.chrBanks
-		case addr <= 0x1FFF: return int(m.registers[5]) % m.chrBanks
+		case addr <= 0x03FF:
+			return int(m.registers[0]&0xFE) % m.chrBanks
+		case addr <= 0x07FF:
+			return int((m.registers[0]&0xFE)|1) % m.chrBanks
+		case addr <= 0x0BFF:
+			return int(m.registers[1]&0xFE) % m.chrBanks
+		case addr <= 0x0FFF:
+			return int((m.registers[1]&0xFE)|1) % m.chrBanks
+		case addr <= 0x13FF:
+			return int(m.registers[2]) % m.chrBanks
+		case addr <= 0x17FF:
+			return int(m.registers[3]) % m.chrBanks
+		case addr <= 0x1BFF:
+			return int(m.registers[4]) % m.chrBanks
+		case addr <= 0x1FFF:
+			return int(m.registers[5]) % m.chrBanks
 		}
 	}
 	return 0
