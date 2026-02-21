@@ -258,11 +258,8 @@ func (d *Display) Update() error {
 		// Load it instantly into the bus
 		d.bus.LoadStateFromMemory(lastState)
 
-		// Skip normal clocking while rewinding so time moves backward
-		return nil
-	}
-
-	if !isRewinding && d.bus.HasCartridge() {
+		// We DO NOT run the emulator clock loop below, so time moves backward.
+	} else if !isRewinding && d.bus.HasCartridge() {
 		// Capture a snapshot every single frame for butter-smooth 1x rewind
 		state := d.bus.SaveStateToMemory()
 		d.rewindBuffer = append(d.rewindBuffer, state)
@@ -316,7 +313,7 @@ func (d *Display) Update() error {
 	}
 
 	// Record inputs if recording is enabled
-	if d.recordFile != nil {
+	if d.recordFile != nil && !isRewinding {
 		if d.firstFrame {
 			d.lastButtonsP1 = buttons
 			d.lastButtonsP2 = buttonsP2
@@ -336,8 +333,10 @@ func (d *Display) Update() error {
 
 	// Run the emulator for one frame's worth of PPU cycles.
 	// 89342 PPU cycles per frame.
-	for i := 0; i < 89342; i++ {
-		d.bus.Clock()
+	if !isRewinding {
+		for i := 0; i < 89342; i++ {
+			d.bus.Clock()
+		}
 	}
 
 	return nil
