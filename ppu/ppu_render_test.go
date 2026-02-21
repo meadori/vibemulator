@@ -42,6 +42,8 @@ func (m *mockMapper) PPUMapWrite(addr uint16, data byte) bool {
 	return false
 }
 
+func (m *mockMapper) Clock() {}
+
 func (m *mockMapper) GetMirroring() byte {
 	return m.mirroring
 }
@@ -142,6 +144,11 @@ func TestPPURenderBackground(t *testing.T) {
 
 	// Ensure spriteScanline is empty for background-only test
 	ppu.spriteScanline = []spriteInfo{}
+
+	// Push all sprites off-screen by initializing OAM Y-coordinates to 0xFF
+	for i := 0; i < len(ppu.oam); i++ {
+		ppu.oam[i] = 0xFF
+	}
 
 	// Manually set initial PPU VRAM for nametable and attribute table
 	// We're using Tile ID 0 (solid red) for the entire screen.
