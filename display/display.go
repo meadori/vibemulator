@@ -79,6 +79,8 @@ type Display struct {
 	// Rewind Engine
 	rewindBuffer []bus.State
 	frameCount   int
+	frameRate    int
+	isRewinding  bool
 }
 
 // New creates a new Display instance.
@@ -181,6 +183,7 @@ func (d *Display) writeRecord(frames int, p1, p2 [8]bool) {
 // Update is called every tick (1/60 [s] by default).
 func (d *Display) Update() error {
 	d.menuBarVisible = true
+	d.frameRate = int(ebiten.ActualFPS())
 
 	// Check if a ROM was selected via the async dialog
 	select {
@@ -248,9 +251,9 @@ func (d *Display) Update() error {
 
 	// Rewind Engine (Prince of Persia style)
 	// If holding Backspace, reverse time. Otherwise, record time.
-	isRewinding := ebiten.IsKeyPressed(ebiten.KeyBackspace)
+	d.isRewinding = ebiten.IsKeyPressed(ebiten.KeyBackspace)
 
-	if isRewinding && len(d.rewindBuffer) > 0 {
+	if d.isRewinding && len(d.rewindBuffer) > 0 {
 		// Pop the last saved state off the end of the buffer
 		lastState := d.rewindBuffer[len(d.rewindBuffer)-1]
 		d.rewindBuffer = d.rewindBuffer[:len(d.rewindBuffer)-1]
@@ -259,7 +262,7 @@ func (d *Display) Update() error {
 		d.bus.LoadStateFromMemory(lastState)
 
 		// We DO NOT run the emulator clock loop below, so time moves backward.
-	} else if !isRewinding && d.bus.HasCartridge() {
+	} else if !d.isRewinding && d.bus.HasCartridge() {
 		// Capture a snapshot every single frame for butter-smooth 1x rewind
 		state := d.bus.SaveStateToMemory()
 		d.rewindBuffer = append(d.rewindBuffer, state)
@@ -313,7 +316,7 @@ func (d *Display) Update() error {
 	}
 
 	// Record inputs if recording is enabled
-	if d.recordFile != nil && !isRewinding {
+	if d.recordFile != nil && !d.isRewinding {
 		if d.firstFrame {
 			d.lastButtonsP1 = buttons
 			d.lastButtonsP2 = buttonsP2
@@ -333,7 +336,7 @@ func (d *Display) Update() error {
 
 	// Run the emulator for one frame's worth of PPU cycles.
 	// 89342 PPU cycles per frame.
-	if !isRewinding {
+	if !d.isRewinding {
 		for i := 0; i < 89342; i++ {
 			d.bus.Clock()
 		}
@@ -445,11 +448,42 @@ func (d *Display) Draw(screen *ebiten.Image) {
 
 		// 2. Draw Main Red Logo
 		drawLogoOffset(0, 0, color.RGBA{220, 50, 50, 255})
+
+		d.drawVCRStatus(screen)
 	}
 
 	// Draw PPU Debug Overlay
 	if d.showDebug {
 		d.drawPPUDebugOverlay(screen)
+	}
+}
+
+func (d *Display) drawVCRStatus(screen *ebiten.Image) {
+	// Draw a VCR-style On-Screen Display (OSD) in the top-right corner
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(1.5, 1.5)
+
+	// Classic VCR Green
+	green := color.RGBA{50, 255, 50, 255}
+
+	var statusText string
+	if d.isRewinding {
+		// Flash REW every ~8 frames
+		if (d.frameCount/8)%2 == 0 {
+			statusText = "REW <<"
+		}
+	} else {
+		statusText = fmt.Sprintf("PLAY > %d FPS", d.frameRate)
+	}
+
+	if statusText != "" {
+		img := ebiten.NewImage(150, 16)
+		ebitenutil.DebugPrintAt(img, statusText, 0, 0)
+
+		// Shift to top right corner of the menu bar
+		op.GeoM.Translate(float64(ScaledWidth()-150), 15)
+		op.ColorScale.ScaleWithColor(green)
+		screen.DrawImage(img, op)
 	}
 }
 
