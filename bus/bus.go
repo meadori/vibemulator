@@ -71,7 +71,11 @@ func (b *Bus) Clock() {
 		}
 
 		// Check for APU IRQ (DMC or Frame IRQ)
-		if b.APU.DmcIRQ || b.APU.FrameIRQ {
+		cartIRQ := false
+		if b.cart != nil {
+			cartIRQ = b.cart.Mapper.IRQPending()
+		}
+		if b.APU.DmcIRQ || b.APU.FrameIRQ || cartIRQ {
 			b.cpu.IRQ()
 		}
 

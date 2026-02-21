@@ -44,6 +44,9 @@ func (m *mockMapper) PPUMapWrite(addr uint16, data byte) bool {
 
 func (m *mockMapper) Clock() {}
 
+func (m *mockMapper) IRQPending() bool { return false }
+func (m *mockMapper) ClearIRQ()        {}
+
 func (m *mockMapper) GetMirroring() byte {
 	return m.mirroring
 }

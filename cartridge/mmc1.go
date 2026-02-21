@@ -210,3 +210,6 @@ func (m *mmc1) Clock() {
 		}
 	}
 }
+
+func (m *mmc1) IRQPending() bool { return false }
+func (m *mmc1) ClearIRQ()        {}

@@ -78,3 +78,6 @@ func (c *cnrom) GetMirroring() byte {
 
 // Clock ticks the mapper (no-op for CNROM).
 func (c *cnrom) Clock() {}
+
+func (c *cnrom) IRQPending() bool { return false }
+func (c *cnrom) ClearIRQ()        {}

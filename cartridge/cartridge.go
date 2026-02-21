@@ -116,6 +116,8 @@ func NewMapper(cart *Cartridge, mapperID byte) (mapper.Mapper, error) {
 		return newUxROM(cart), nil
 	case 3:
 		return newCNROM(cart), nil
+	case 4:
+		return newMMC3(cart), nil
 	default:
 		return nil, fmt.Errorf("unsupported mapper: %d", mapperID)
 	}

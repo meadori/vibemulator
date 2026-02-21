@@ -76,3 +76,6 @@ func (u *uxrom) GetMirroring() byte {
 
 // Clock ticks the mapper (no-op for UxROM).
 func (u *uxrom) Clock() {}
+
+func (u *uxrom) IRQPending() bool { return false }
+func (u *uxrom) ClearIRQ()        {}

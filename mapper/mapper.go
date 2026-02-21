@@ -8,4 +8,6 @@ type Mapper interface {
 	PPUMapWrite(addr uint16, data byte) bool
 	GetMirroring() byte
 	Clock()
+	IRQPending() bool
+	ClearIRQ()
 }

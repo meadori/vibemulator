@@ -75,3 +75,6 @@ func (n *nrom) GetMirroring() byte {
 }
 
 func (n *nrom) Clock() {}
+
+func (n *nrom) IRQPending() bool { return false }
+func (n *nrom) ClearIRQ()        {}
